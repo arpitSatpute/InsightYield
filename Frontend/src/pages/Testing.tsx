@@ -158,7 +158,7 @@ export default function Testing() {
         address: VUSDT_ADDRESS,
         abi: VUSDT_ABI,
         functionName: "mint",
-        args: [LENDING_STRATEGY_ADDRESS, 1_000_000n * BigInt(1e18)],
+        args: [LIQUIDITY_STRATEGY_ADDRESS, 1_000_000n * BigInt(1e18)],
         account: address,
         gas: 12_000_000n,
       });
