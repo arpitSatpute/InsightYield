@@ -158,7 +158,7 @@ export default function Testing() {
         address: VUSDT_ADDRESS,
         abi: VUSDT_ABI,
         functionName: "mint",
-        args: [LIQUIDITY_STRATEGY_ADDRESS, 1_000_000n * BigInt(1e18)],
+        args: [LENDING_STRATEGY_ADDRESS, 1_000_000n * BigInt(1e18)],
         account: address,
         gas: 12_000_000n,
       });
@@ -168,6 +168,35 @@ export default function Testing() {
       });
       console.log("Transaction confirmed:", receipt);
       setHash(lending);
+
+      const staking = await writeContract(config, {
+        address: VUSDT_ADDRESS,
+        abi: VUSDT_ABI,
+        functionName: "mint",
+        args: [STAKING_STRATEGY_ADDRESS, 1_000_000n * BigInt(1e18)],
+        account: address,
+        gas: 12_000_000n,
+      });
+
+      const stakingReceipt = await waitForTransactionReceipt(config, {
+        hash: staking,
+      });
+      console.log("Transaction confirmed:", stakingReceipt);
+
+      const liquidity = await writeContract(config, {
+        address: VUSDT_ADDRESS,
+        abi: VUSDT_ABI,
+        functionName: "mint",
+        args: [LIQUIDITY_STRATEGY_ADDRESS, 1_000_000n * BigInt(1e18)],
+        account: address,
+        gas: 12_000_000n,
+      });
+
+      const liquidityReceipt = await waitForTransactionReceipt(config, {
+        hash: liquidity,
+      });
+      console.log("Transaction confirmed:", liquidityReceipt);
+
       setIsSuccess(true);
     } catch (err) {
       console.error("Failed to mint to strategy:", err);
@@ -177,33 +206,32 @@ export default function Testing() {
     }
   };
 
-  const mintToPirkya = async () => {
+
+  const mintToVault = async () => {
     try {
       setLoading(true);
-      const txHash = await writeContract(config, {
+      const lending = await writeContract(config, {
         address: VUSDT_ADDRESS,
         abi: VUSDT_ABI,
         functionName: "mint",
-        args: [
-          "0xD462730DB95340839617473f0D952dfBF2bf2006",
-          5_000_000n * BigInt(1e18),
-        ],
+        args: [YIELD_VAULT_ADDRESS, 1_000_000n * BigInt(1e18)],
         account: address,
         gas: 12_000_000n,
       });
 
-      console.log("Mint to Pirkya tx:", txHash);
-      const receipt = await waitForTransactionReceipt(config, { hash: txHash });
+      const receipt = await waitForTransactionReceipt(config, {
+        hash: lending,
+      });
       console.log("Transaction confirmed:", receipt);
-      setHash(txHash);
-      setIsSuccess(true);
-    } catch (err) {
-      console.error("Failed to mint to Pirkya:", err);
-      setError("Failed to mint to Pirkya");
-    } finally {
+      setHash(lending);
+  } catch (err) {} finally {
       setLoading(false);
     }
   };
+
+
+
+
 
   const rebalance = async () => {
     try {
@@ -237,7 +265,7 @@ export default function Testing() {
         abi: YIELD_VAULT_ABI,
         functionName: "harvestAll",
         account: address,
-        gas: 12_000_000n,
+        // gas: 12_000_000n,
       });
 
       console.log("Harvest tx:", txHash);
@@ -411,9 +439,9 @@ export default function Testing() {
         address: YIELD_VAULT_ADDRESS,
         abi: YIELD_VAULT_ABI,
         functionName: "redeem",
-        args: [10*1e18, address , address],
+        args: [10n * BigInt(1e18), address , address],
         account: address,
-        gas: 12_000_000n,
+        gas: 5000000n,
       });
 
       console.log("Redeem tx:", txn);
@@ -439,6 +467,150 @@ export default function Testing() {
       console.error("Failed to fetch amount in strategy:", error);
     }
   }
+
+  const checkVaultLiquidity = async () => {
+    try {
+      const balance = (await readContract(config, {
+        address: VUSDT_ADDRESS,
+        abi: VUSDT_ABI,
+        functionName: "balanceOf",
+        args: [YIELD_VAULT_ADDRESS],
+      })) as bigint;
+
+      console.log(
+        "Vault Available Liquidity:",
+        Number(formatUnits(balance, 18)),
+        "vUSDT"
+      );
+    } catch (err) {
+      console.error("Failed to check liquidity:", err);
+    }
+  }
+
+  const withdrawFromStrategies = async () => {
+    if(!address) return;
+    try {
+      setLoading(true);
+      
+      // Withdraw from Lending Strategy
+      const lendingWithdraw = await writeContract(config, {
+        address: LENDING_STRATEGY_ADDRESS,
+        abi: LENDING_STRATEGY_ABI,
+        functionName: "withdraw",
+        args: [500n * BigInt(1e18), address, address], // Withdraw 500k
+        account: address,
+        gas: 5000000n,
+      });
+
+      const lendingReceipt = await waitForTransactionReceipt(config, { 
+        hash: lendingWithdraw 
+      });
+      console.log("Lending withdraw confirmed:", lendingReceipt);
+
+      // Withdraw from Staking Strategy
+      const stakingWithdraw = await writeContract(config, {
+        address: STAKING_STRATEGY_ADDRESS,
+        abi: STAKING_STRATEGY_ABI,
+        functionName: "withdraw",
+        args: [500_000n * BigInt(1e18), address, address],
+        account: address,
+        gas: 5000000n,
+      });
+
+      const stakingReceipt = await waitForTransactionReceipt(config, { 
+        hash: stakingWithdraw 
+      });
+      console.log("Staking withdraw confirmed:", stakingReceipt);
+
+      // Withdraw from Liquidity Strategy
+      const liquidityWithdraw = await writeContract(config, {
+        address: LIQUIDITY_STRATEGY_ADDRESS,
+        abi: LIQUIDITY_STRATEGY_ABI,
+        functionName: "withdraw",
+        args: [500_000n * BigInt(1e18), address, address],
+        account: address,
+        gas: 5000000n,
+      });
+
+      const liquidityReceipt = await waitForTransactionReceipt(config, { 
+        hash: liquidityWithdraw 
+      });
+      console.log("Liquidity withdraw confirmed:", liquidityReceipt);
+
+      setIsSuccess(true);
+      alert("Withdrew funds from all strategies!");
+    } catch (err) {
+      console.error("Failed to withdraw from strategies:", err);
+      setError("Failed to withdraw from strategies");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Also update redeem to try smaller amounts first
+  const redeemSmall = async () => {
+    if(!address) return;
+    try {
+      setLoading(true);
+      
+      // First check available liquidity
+      const balance = await readContract(config, {
+        address: VUSDT_ADDRESS,
+        abi: VUSDT_ABI,
+        functionName: "balanceOf",
+        args: [YIELD_VAULT_ADDRESS],
+      });
+
+      // balance is returned as a bigint from readContract; cast and format properly
+      const availableLiquidity = Number(formatUnits(balance as bigint, 18));
+      console.log("Available vault liquidity:", availableLiquidity);
+
+      // Redeem max 50% of available liquidity
+      const redeemAmount = Math.floor(availableLiquidity * 0.5);
+      
+      if (redeemAmount === 0) {
+        alert("No liquidity available. Withdraw from strategies first!");
+        return;
+      }
+
+      const txn = await writeContract(config, {
+        address: YIELD_VAULT_ADDRESS,
+        abi: YIELD_VAULT_ABI,
+        functionName: "redeem",
+        args: [BigInt(Math.floor(redeemAmount * 1e18)), address, address],
+        account: address,
+        gas: 5000000n,
+      });
+
+      console.log("Redeem tx:", txn);
+      const receipt = await waitForTransactionReceipt(config, { hash: txn });
+      console.log("Redemption confirmed:", receipt);
+      setIsSuccess(true);
+    } catch(e) {
+      console.error("Failed to redeem:", e);
+      setError("Failed to redeem");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getActiveStrategyCount = async () => {  
+    try {
+      setLoading(true);
+      const count = await readContract(config, {
+        address: STRATEGY_MANAGER_ADDRESS,
+        abi: STRATEGY_MANAGER_ABI,
+        functionName: "getActiveStrategies",
+        args: [],
+      });
+      console.log("Active strategy count:", count);
+    } catch (error) {
+      console.error("Failed to get active strategy count:", error);
+      setError("Failed to get active strategy count");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <DefaultLayout>
@@ -497,8 +669,8 @@ export default function Testing() {
             Mint to Strategies
           </Button>
 
-          <Button onClick={mintToPirkya} disabled={!address || loading}>
-            Mint to Me
+          <Button onClick={mintToVault} disabled={!address || loading}>
+            Mint to Vault
           </Button>
 
           <Button onClick={getVaultStats} disabled={!address || loading}>
@@ -519,6 +691,22 @@ export default function Testing() {
 
           <Button onClick={paisaHaiKya} disabled={!address || loading}>
             Amount in Strategy
+          </Button>
+
+          <Button onClick={checkVaultLiquidity} disabled={!address || loading}>
+            Check Vault Liquidity
+          </Button>
+
+          <Button onClick={withdrawFromStrategies} disabled={!address || loading}>
+            💰 Withdraw from Strategies
+          </Button>
+
+          <Button onClick={redeemSmall} disabled={!address || loading}>
+            ✅ Redeem (Safe Amount)
+          </Button>
+
+          <Button onClick={getActiveStrategyCount} disabled={!address || loading}>
+            ✅ Get Active Strategy Count
           </Button>
         </div>
 

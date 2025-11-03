@@ -214,87 +214,125 @@ export default function Vault() {
     }
   };
 
-  const withdrawFromVault = async () => {
-    if (!withdrawAmount || !address) return;
-    
-    setIsLoading(true);
-    setHash("Processing withdrawal...");
-    
-    try {
-      const withdrawTx = await writeContract(config, {
-        address: YIELD_VAULT_ADDRESS,
-        abi: yieldVaultAbi,
-        functionName: "withdraw",
-        args: [parseUnits(withdrawAmount, 18), address, address],
-      });
+ const withdrawFromVault = async () => {
+  if (!withdrawAmount || !address) return;
 
-      console.log("Withdraw tx:", withdrawTx);
-      setHash(withdrawTx);
+  setIsLoading(true);
+  setHash("Processing withdrawal...");
 
-      const withdrawReceipt = await waitForTransactionReceipt(config, { 
-        hash: withdrawTx,
-        timeout: 60000,
-      });
+  try {
+    const withdrawTx = await writeContract(config, {
+      address: YIELD_VAULT_ADDRESS,
+      abi: yieldVaultAbi,
+      functionName: "withdraw",
+      args: [parseUnits(withdrawAmount, 18), address, address],
+      gas: 2000000n, // Increased gas limit
+    });
 
-      if (withdrawReceipt.status === "success") {
-        setWithdrawAmount("");
-        setHash("✓ Withdrawal successful!");
-        setShowWithdrawModal(false);
-        
-        setTimeout(() => {
-          window.location.reload();
-        }, 2000);
-      } else {
-        setHash("Withdrawal failed!");
-      }
-    } catch (err: any) {
-      console.error("Withdraw error:", err);
-      setHash(`✗ Error: ${err?.message || "Transaction failed"}`);
-    } finally {
-      setIsLoading(false);
+    console.log("Withdraw tx:", withdrawTx);
+    setHash(withdrawTx);
+
+    const withdrawReceipt = await waitForTransactionReceipt(config, {
+      hash: withdrawTx,
+      timeout: 60000,
+    });
+
+    if (withdrawReceipt.status === "success") {
+      setWithdrawAmount("");
+      setHash("✓ Withdrawal successful!");
+      setShowWithdrawModal(false);
+
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    } else {
+      setHash("Withdrawal failed!");
     }
-  };
+  } catch (err: any) {
+    console.error("Withdraw error:", err);
+    setHash(`✗ Error: ${err?.message || "Transaction failed"}`);
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+
 
   const redeemShares = async () => {
-    if (!redeemAmount || !address) return;
+  if (!redeemAmount || !address) return;
+  
+  setIsLoading(true);
+  setHash("Processing redemption...");
+  
+  try {
+    const redeemValue = parseFloat(redeemAmount);
+    const availableShares = parseFloat(share || "0");
     
-    setIsLoading(true);
-    setHash("Processing redemption...");
-    
-    try {
-      const redeemTx = await writeContract(config, {
-        address: YIELD_VAULT_ADDRESS,
-        abi: yieldVaultAbi,
-        functionName: "redeem",
-        args: [parseUnits(redeemAmount, 18), address, address],
-      });
-
-      console.log("Redeem tx:", redeemTx);
-      setHash(redeemTx);
-
-      const redeemReceipt = await waitForTransactionReceipt(config, { 
-        hash: redeemTx,
-        timeout: 60000,
-      });
-
-      if (redeemReceipt.status === "success") {
-        setRedeemAmount("");
-        setHash("✓ Redemption successful!");
-        setShowRedeemModal(false);
-        
-        setTimeout(() => {
-          window.location.reload();
-        }, 2000);
-      } else {
-        setHash("Redemption failed!");
-      }
-    } catch (err: any) {
-      console.error("Redeem error:", err);
-      setHash(`✗ Error: ${err?.message || "Transaction failed"}`);
-    } finally {
+    if (redeemValue > availableShares) {
+      setHash("✗ Error: Redeem amount exceeds available shares");
       setIsLoading(false);
+      return;
     }
-  };
+
+    const estimatedAssets = (await readContract(config, {
+      address: YIELD_VAULT_ADDRESS,
+      abi: yieldVaultAbi,
+      functionName: "convertToAssets",
+      args: [parseUnits(redeemAmount, 18)],
+    })) as bigint;
+
+    console.log("Estimated assets:", formatUnits(estimatedAssets, 18));
+
+    const redeemTx = await writeContract(config, {
+      address: YIELD_VAULT_ADDRESS,
+      abi: yieldVaultAbi,
+      functionName: "redeem",
+      args: [parseUnits(redeemAmount, 18), address, address],
+      gas: 300000n, // Add explicit gas limit
+    });
+
+    console.log("Redeem tx:", redeemTx);
+    setHash(redeemTx);
+
+    const redeemReceipt = await waitForTransactionReceipt(config, { 
+      hash: redeemTx,
+      timeout: 60000,
+    });
+
+    if (redeemReceipt.status === "success") {
+      setRedeemAmount("");
+      setHash("✓ Redemption successful!");
+      setShowRedeemModal(false);
+      
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    } else {
+      setHash("✗ Redemption failed!");
+    }
+  } catch (err: any) {
+    console.error("Redeem error:", err);
+    
+    // Better error messages
+    let errorMsg = "Transaction failed";
+    
+    if (err.message?.includes("Insufficient liquidity")) {
+      errorMsg = "Vault has insufficient liquidity for this redemption. Try a smaller amount.";
+    } else if (err.message?.includes("Insufficient balance")) {
+      errorMsg = "Insufficient balance for redemption.";
+    } else if (err.message?.includes("gas")) {
+      errorMsg = "Gas estimation failed. Please try again.";
+    } else if (err.message?.includes("User rejected")) {
+      errorMsg = "Transaction rejected by user.";
+    } else {
+      errorMsg = err?.message || errorMsg;
+    }
+    
+    setHash(`✗ Error: ${errorMsg}`);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   if (!isConnected) {
     return (

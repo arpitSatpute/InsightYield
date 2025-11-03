@@ -322,32 +322,6 @@
 				"internalType": "uint256",
 				"name": "amount",
 				"type": "uint256"
-			}
-		],
-		"name": "EmergencyWithdraw",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "newRecipient",
-				"type": "address"
-			}
-		],
-		"name": "FeeRecipientUpdated",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "amount",
-				"type": "uint256"
 			},
 			{
 				"indexed": false,
@@ -370,6 +344,19 @@
 			}
 		],
 		"name": "Harvested",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "newBps",
+				"type": "uint256"
+			}
+		],
+		"name": "LiquidityBufferUpdated",
 		"type": "event"
 	},
 	{
@@ -410,32 +397,6 @@
 			{
 				"indexed": false,
 				"internalType": "uint256",
-				"name": "newFee",
-				"type": "uint256"
-			}
-		],
-		"name": "PerformanceFeeUpdated",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "newInterval",
-				"type": "uint256"
-			}
-		],
-		"name": "RebalanceIntervalUpdated",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": false,
-				"internalType": "uint256",
 				"name": "timestamp",
 				"type": "uint256"
 			},
@@ -447,6 +408,44 @@
 			}
 		],
 		"name": "Rebalanced",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "strategy",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "string",
+				"name": "reason",
+				"type": "string"
+			}
+		],
+		"name": "StrategyWithdrawError",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "strategy",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "amount",
+				"type": "uint256"
+			}
+		],
+		"name": "StrategyWithdrawn",
 		"type": "event"
 	},
 	{
@@ -522,19 +521,6 @@
 			}
 		],
 		"name": "Withdraw",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "newFee",
-				"type": "uint256"
-			}
-		],
-		"name": "WithdrawalFeeUpdated",
 		"type": "event"
 	},
 	{
@@ -739,7 +725,7 @@
 	},
 	{
 		"inputs": [],
-		"name": "harvestAll",
+		"name": "lastRebalance",
 		"outputs": [
 			{
 				"internalType": "uint256",
@@ -747,12 +733,12 @@
 				"type": "uint256"
 			}
 		],
-		"stateMutability": "nonpayable",
+		"stateMutability": "view",
 		"type": "function"
 	},
 	{
 		"inputs": [],
-		"name": "lastRebalance",
+		"name": "liquidityBufferBps",
 		"outputs": [
 			{
 				"internalType": "uint256",
@@ -1071,11 +1057,11 @@
 		"inputs": [
 			{
 				"internalType": "uint256",
-				"name": "fee",
+				"name": "bps",
 				"type": "uint256"
 			}
 		],
-		"name": "setPerformanceFee",
+		"name": "setLiquidityBufferBps",
 		"outputs": [],
 		"stateMutability": "nonpayable",
 		"type": "function"
@@ -1084,11 +1070,11 @@
 		"inputs": [
 			{
 				"internalType": "uint256",
-				"name": "interval",
+				"name": "fee",
 				"type": "uint256"
 			}
 		],
-		"name": "setRebalanceInterval",
+		"name": "setPerformanceFee",
 		"outputs": [],
 		"stateMutability": "nonpayable",
 		"type": "function"
