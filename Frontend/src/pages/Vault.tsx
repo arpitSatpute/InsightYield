@@ -226,7 +226,7 @@ export default function Vault() {
       abi: yieldVaultAbi,
       functionName: "withdraw",
       args: [parseUnits(withdrawAmount, 18), address, address],
-      gas: 2000000n, // Increased gas limit
+      // gas: 2000000n, // Increased gas limit
     });
 
     console.log("Withdraw tx:", withdrawTx);
@@ -288,7 +288,6 @@ export default function Vault() {
       abi: yieldVaultAbi,
       functionName: "redeem",
       args: [parseUnits(redeemAmount, 18), address, address],
-      gas: 300000n, // Add explicit gas limit
     });
 
     console.log("Redeem tx:", redeemTx);
