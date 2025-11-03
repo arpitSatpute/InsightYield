@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+/*
+  YieldVault.sol (updated)
+  - Proportional rebalance across all strategies based on allocation
+  - Proportional withdraw/redeem from all active strategies
+  - Robust liquidity buffer and fee management
+*/
+
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -10,11 +17,6 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../interfaces/IStrategy.sol";
 import "./StrategyManager.sol";
 
-/**
- * @title YieldVault
- * @notice Main vault contract that accepts vETH and allocates to strategies
- * @dev Implements ERC4626 tokenized vault standard
- */
 contract YieldVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
     using SafeERC20 for IERC20;
 
@@ -25,37 +27,40 @@ contract YieldVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
     uint256 public lastRebalance;
 
     uint256 public rebalanceInterval = 1 days;
-    uint256 public performanceFee = 1000; // 10% performance fee (basis points)
-    uint256 public withdrawalFee = 50; // 0.5% withdrawal fee (basis points)
+    uint256 public performanceFee = 1000; // 10%
+    uint256 public withdrawalFee = 50; // 0.5%
+    uint256 public liquidityBufferBps = 500; // 5%
+
+    uint256 private constant BASIS_POINTS = 10000;
+    uint256 private constant MAX_PERFORMANCE_FEE = 2000;
+    uint256 private constant MAX_WITHDRAWAL_FEE = 500;
+    uint256 private constant MAX_BUFFER_BPS = 2000;
 
     address public feeRecipient;
-
-    uint256 private constant MAX_PERFORMANCE_FEE = 2000; // 20%
-    uint256 private constant MAX_WITHDRAWAL_FEE = 500; // 5%
-    uint256 private constant BASIS_POINTS = 10000;
 
     event Deposited(address indexed user, uint256 assets, uint256 shares);
     event Withdrawn(address indexed user, uint256 assets, uint256 shares);
     event Rebalanced(uint256 timestamp, uint256 totalAssets);
-    event FeesCollected(uint256 amount, string feeType);
     event Harvested(uint256 totalYield);
-    event RebalanceIntervalUpdated(uint256 newInterval);
-    event PerformanceFeeUpdated(uint256 newFee);
-    event WithdrawalFeeUpdated(uint256 newFee);
-    event FeeRecipientUpdated(address indexed newRecipient);
-    event EmergencyWithdraw(uint256 amount);
+    event FeesCollected(uint256 amount, string feeType);
+    event StrategyWithdrawError(address indexed strategy, string reason);
+    event StrategyWithdrawn(address indexed strategy, uint256 amount);
+    event LiquidityBufferUpdated(uint256 newBps);
 
-   
-
-    constructor(IERC20 _asset, address _strategyManager) ERC4626(_asset) ERC20("Insight", "INSIGH") Ownable(msg.sender) {
-        require(_strategyManager != address(0), "YieldVault: Invalid strategy manager");
-
+    constructor(IERC20 _asset, address _strategyManager)
+        ERC4626(_asset)
+        ERC20("Insight", "INSIGHT")
+        Ownable(msg.sender)
+    {
+        require(_strategyManager != address(0), "Invalid strategy manager");
         strategyManager = StrategyManager(_strategyManager);
         feeRecipient = msg.sender;
         lastRebalance = block.timestamp;
     }
 
-   
+    // ------------------------------
+    // Deposit / Mint
+    // ------------------------------
     function deposit(uint256 assets, address receiver)
         public
         override
@@ -63,17 +68,10 @@ contract YieldVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
         whenNotPaused
         returns (uint256)
     {
-        require(assets > 0, "YieldVault: Cannot deposit 0");
-
+        require(assets > 0, "Cannot deposit 0");
         uint256 shares = super.deposit(assets, receiver);
         totalDeposited += assets;
-
         emit Deposited(receiver, assets, shares);
-
-        if (block.timestamp >= lastRebalance + rebalanceInterval) {
-            _rebalance();
-        }
-
         return shares;
     }
 
@@ -84,47 +82,42 @@ contract YieldVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
         whenNotPaused
         returns (uint256)
     {
-        require(shares > 0, "YieldVault: Cannot mint 0");
-
+        require(shares > 0, "Cannot mint 0");
         uint256 assets = super.mint(shares, receiver);
         totalDeposited += assets;
-
         emit Deposited(receiver, assets, shares);
-
-        if (block.timestamp >= lastRebalance + rebalanceInterval) {
-            _rebalance();
-        }
-
         return assets;
     }
 
+    // ------------------------------
+    // Withdraw / Redeem
+    // ------------------------------
     function withdraw(uint256 assets, address receiver, address owner)
         public
         override
         nonReentrant
         returns (uint256)
     {
-        require(assets > 0, "YieldVault: Cannot withdraw 0");
+        require(assets > 0, "Cannot withdraw 0");
+
+        uint256 shares = convertToShares(assets);
+        require(balanceOf(owner) >= shares, "Insufficient shares");
 
         uint256 fee = (assets * withdrawalFee) / BASIS_POINTS;
         uint256 assetsAfterFee = assets - fee;
 
-        uint256 availableBalance = IERC20(asset()).balanceOf(address(this));
+        _proportionalWithdrawFromStrategies(assets);
+        _burn(owner, shares);
 
-        if (availableBalance < assets) {
-            _withdrawFromStrategies(assets - availableBalance);
-        }
-
-        uint256 shares = super.withdraw(assets, receiver, owner);
-        totalWithdrawn += assets;
+        IERC20(asset()).safeTransfer(receiver, assetsAfterFee);
 
         if (fee > 0 && feeRecipient != address(0)) {
             IERC20(asset()).safeTransfer(feeRecipient, fee);
             emit FeesCollected(fee, "withdrawal");
         }
 
+        totalWithdrawn += assets;
         emit Withdrawn(receiver, assetsAfterFee, shares);
-
         return shares;
     }
 
@@ -134,77 +127,105 @@ contract YieldVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
         nonReentrant
         returns (uint256)
     {
-        require(shares > 0, "YieldVault: Cannot redeem 0");
+        require(shares > 0, "Cannot redeem 0");
+        require(balanceOf(owner) >= shares, "Insufficient shares");
 
-        uint256 assets = previewRedeem(shares);
+        uint256 assets = convertToAssets(shares);
         uint256 fee = (assets * withdrawalFee) / BASIS_POINTS;
+        uint256 assetsAfterFee = assets - fee;
 
-        uint256 availableBalance = IERC20(asset()).balanceOf(address(this));
+        _proportionalWithdrawFromStrategies(assets);
+        _burn(owner, shares);
 
-        if (availableBalance < assets) {
-            _withdrawFromStrategies(assets - availableBalance);
-        }
-
-        uint256 actualAssets = super.redeem(shares, receiver, owner);
-        totalWithdrawn += actualAssets;
+        IERC20(asset()).safeTransfer(receiver, assetsAfterFee);
 
         if (fee > 0 && feeRecipient != address(0)) {
             IERC20(asset()).safeTransfer(feeRecipient, fee);
             emit FeesCollected(fee, "withdrawal");
         }
 
-        emit Withdrawn(receiver, actualAssets, shares);
-
-        return actualAssets;
+        totalWithdrawn += assets;
+        emit Withdrawn(receiver, assetsAfterFee, shares);
+        return assetsAfterFee;
     }
 
-    // ============================================================================
-    // Strategy Management
-    // ============================================================================
-
-    function totalAssets() public view override returns (uint256) {
-        uint256 vaultBalance = IERC20(asset()).balanceOf(address(this));
-        uint256 strategiesBalance = _getTotalStrategyBalances();
-        return vaultBalance + strategiesBalance;
-    }
-
-    function _getTotalStrategyBalances() internal view returns (uint256) {
-        uint256 total = 0;
+    // ------------------------------
+    // Strategy Withdraw Helpers
+    // ------------------------------
+    function _proportionalWithdrawFromStrategies(uint256 totalAmount) internal {
         uint256 count = strategyManager.getStrategyCount();
+        uint256 totalAllocated = 0;
 
+        // Calculate total allocation (for proportional math)
         for (uint256 i = 0; i < count; i++) {
-            (address strategy, , bool active) = strategyManager.getStrategy(i);
-            if (active) {
-                try IStrategy(strategy).balanceOf() returns (uint256 bal) {
-                    total += bal;
-                } catch {}
+            (, uint256 allocation, bool active) = strategyManager.getStrategy(i);
+            if (active && allocation > 0) totalAllocated += allocation;
+        }
+
+        uint256 totalPulled = 0;
+        for (uint256 i = 0; i < count; i++) {
+            (address strategy, uint256 allocation, bool active) = strategyManager.getStrategy(i);
+            if (!active || allocation == 0) continue;
+
+            uint256 portion = (totalAmount * allocation) / totalAllocated;
+            if (portion == 0) continue;
+
+            uint256 beforeBal = IERC20(asset()).balanceOf(address(this));
+            try IStrategy(strategy).withdraw(portion, address(this), address(this)) returns (uint256 withdrawn) {
+                uint256 afterBal = IERC20(asset()).balanceOf(address(this));
+                uint256 received = afterBal > beforeBal ? afterBal - beforeBal : withdrawn;
+                totalPulled += received;
+                emit StrategyWithdrawn(strategy, received);
+            } catch Error(string memory reason) {
+                emit StrategyWithdrawError(strategy, reason);
+                continue;
+            } catch {
+                emit StrategyWithdrawError(strategy, "withdraw reverted");
+                continue;
             }
         }
-        return total;
+
+        require(
+            IERC20(asset()).balanceOf(address(this)) >= totalAmount,
+            "YieldVault: insufficient liquidity after proportional withdrawals"
+        );
     }
 
-    function rebalance() external onlyOwner {
-        _rebalance();
-    }
+    // ------------------------------
+    // Rebalance (proportional deposits)
+    // ------------------------------
+    function rebalance() external onlyOwner nonReentrant {
+        uint256 count = strategyManager.getStrategyCount();
+        require(count > 0, "No strategies");
 
-    function _rebalance() internal {
         _harvestAll();
 
-        uint256 totalBalance = IERC20(asset()).balanceOf(address(this));
-        if (totalBalance == 0) return;
+        uint256 vaultBalance = IERC20(asset()).balanceOf(address(this));
+        if (vaultBalance == 0) return;
 
-        uint256 count = strategyManager.getStrategyCount();
+        uint256 buffer = (vaultBalance * liquidityBufferBps) / BASIS_POINTS;
+        uint256 investable = vaultBalance > buffer ? vaultBalance - buffer : 0;
+        if (investable == 0) return;
+
+        uint256 totalAlloc = 0;
+        for (uint256 i = 0; i < count; i++) {
+            (, uint256 allocation, bool active) = strategyManager.getStrategy(i);
+            if (active && allocation > 0) totalAlloc += allocation;
+        }
 
         for (uint256 i = 0; i < count; i++) {
             (address strategy, uint256 allocation, bool active) = strategyManager.getStrategy(i);
+            if (!active || allocation == 0) continue;
 
-            if (active && allocation > 0) {
-                uint256 targetAmount = (totalBalance * allocation) / BASIS_POINTS;
+            uint256 toDeposit = (investable * allocation) / totalAlloc;
+            if (toDeposit == 0) continue;
 
-                if (targetAmount > 0) {
-                    IERC20(asset()).approve(strategy, targetAmount);
-                    try IStrategy(strategy).deposit(targetAmount, address(this)) {} catch {}
-                }
+            IERC20(asset()).approve(strategy, toDeposit);
+            try IStrategy(strategy).deposit(toDeposit, address(this)) {
+                // success
+            } catch {
+                emit StrategyWithdrawError(strategy, "deposit reverted");
+                continue;
             }
         }
 
@@ -212,81 +233,86 @@ contract YieldVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
         emit Rebalanced(block.timestamp, totalAssets());
     }
 
-    function _withdrawFromStrategies(uint256 amount) internal {
-        uint256 remaining = amount;
-        uint256 count = strategyManager.getStrategyCount();
-
-        for (uint256 i = 0; i < count && remaining > 0; i++) {
-            (address strategy, , bool active) = strategyManager.getStrategy(i);
-
-            if (active) {
-                try IStrategy(strategy).balanceOf() returns (uint256 bal) {
-                    if (bal > 0) {
-                        uint256 toWithdraw = remaining > bal ? bal : remaining;
-                        try IStrategy(strategy).withdraw(toWithdraw, msg.sender, owner()) returns (uint256 withdrawn) {
-                            remaining -= withdrawn;
-                        } catch {}
-                    }
-                } catch {}
-            }
-        }
-
-        require(remaining == 0 || remaining < amount, "YieldVault: Insufficient liquidity");
-    }
-
-    function harvestAll() external onlyOwner returns (uint256) {
-        return _harvestAll();
-    }
-
+    // ------------------------------
+    // Harvest / Emergency
+    // ------------------------------
     function _harvestAll() internal returns (uint256 totalYield) {
         uint256 count = strategyManager.getStrategyCount();
-
         for (uint256 i = 0; i < count; i++) {
             (address strategy, , bool active) = strategyManager.getStrategy(i);
-
-            if (active) {
-                try IStrategy(strategy).harvest() returns (uint256 yieldAmount) {
-                    totalYield += yieldAmount;
-                } catch {}
+            if (!active) continue;
+            try IStrategy(strategy).harvest() returns (uint256 yieldAmount) {
+                totalYield += yieldAmount;
+            } catch {
+                continue;
             }
         }
 
         if (totalYield > 0) {
             uint256 fee = (totalYield * performanceFee) / BASIS_POINTS;
             if (fee > 0 && feeRecipient != address(0)) {
+                IERC20(asset()).safeTransfer(feeRecipient, fee);
                 emit FeesCollected(fee, "performance");
             }
             emit Harvested(totalYield);
         }
+        return totalYield;
     }
 
-    // ============================================================================
-    // Admin
-    // ============================================================================
+    function emergencyWithdrawAll() external onlyOwner {
+        uint256 count = strategyManager.getStrategyCount();
+        uint256 pulled = 0;
+        for (uint256 i = 0; i < count; i++) {
+            (address strategy, , bool active) = strategyManager.getStrategy(i);
+            if (!active) continue;
+            try IStrategy(strategy).withdrawAll() returns (uint256 amt) {
+                pulled += amt;
+            } catch {
+                continue;
+            }
+        }
+        emit StrategyWithdrawn(address(0), pulled);
+    }
 
-    function setRebalanceInterval(uint256 interval) external onlyOwner {
-        require(interval >= 1 hours, "YieldVault: Interval too short");
-        require(interval <= 30 days, "YieldVault: Interval too long");
-        rebalanceInterval = interval;
-        emit RebalanceIntervalUpdated(interval);
+    // ------------------------------
+    // Views
+    // ------------------------------
+    function totalAssets() public view override returns (uint256) {
+        uint256 bal = IERC20(asset()).balanceOf(address(this));
+        uint256 total = bal;
+        uint256 count = strategyManager.getStrategyCount();
+        for (uint256 i = 0; i < count; i++) {
+            (address strategy, , bool active) = strategyManager.getStrategy(i);
+            if (!active) continue;
+            try IStrategy(strategy).balanceOf() returns (uint256 stratBal) {
+                total += stratBal;
+            } catch {}
+        }
+        return total;
+    }
+
+    // ------------------------------
+    // Admin
+    // ------------------------------
+    function setLiquidityBufferBps(uint256 bps) external onlyOwner {
+        require(bps <= MAX_BUFFER_BPS, "Too high");
+        liquidityBufferBps = bps;
+        emit LiquidityBufferUpdated(bps);
     }
 
     function setPerformanceFee(uint256 fee) external onlyOwner {
-        require(fee <= MAX_PERFORMANCE_FEE, "YieldVault: Fee too high");
+        require(fee <= MAX_PERFORMANCE_FEE, "Too high");
         performanceFee = fee;
-        emit PerformanceFeeUpdated(fee);
     }
 
     function setWithdrawalFee(uint256 fee) external onlyOwner {
-        require(fee <= MAX_WITHDRAWAL_FEE, "YieldVault: Fee too high");
+        require(fee <= MAX_WITHDRAWAL_FEE, "Too high");
         withdrawalFee = fee;
-        emit WithdrawalFeeUpdated(fee);
     }
 
     function setFeeRecipient(address recipient) external onlyOwner {
-        require(recipient != address(0), "YieldVault: Invalid recipient");
+        require(recipient != address(0), "Invalid");
         feeRecipient = recipient;
-        emit FeeRecipientUpdated(recipient);
     }
 
     function pause() external onlyOwner {
@@ -295,22 +321,5 @@ contract YieldVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
 
     function unpause() external onlyOwner {
         _unpause();
-    }
-
-    function emergencyWithdrawAll() external onlyOwner {
-        uint256 totalWithdrawnAssets = 0;
-        uint256 count = strategyManager.getStrategyCount();
-
-        for (uint256 i = 0; i < count; i++) {
-            (address strategy, , bool active) = strategyManager.getStrategy(i);
-
-            if (active) {
-                try IStrategy(strategy).withdrawAll() returns (uint256 amount) {
-                    totalWithdrawnAssets += amount;
-                } catch {}
-            }
-        }
-
-        emit EmergencyWithdraw(totalWithdrawnAssets);
     }
 }
