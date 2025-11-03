@@ -62,32 +62,42 @@ contract YieldVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
     // Deposit / Mint
     // ------------------------------
     function deposit(uint256 assets, address receiver)
-        public
-        override
-        nonReentrant
-        whenNotPaused
-        returns (uint256)
-    {
-        require(assets > 0, "Cannot deposit 0");
-        uint256 shares = super.deposit(assets, receiver);
-        totalDeposited += assets;
-        emit Deposited(receiver, assets, shares);
-        return shares;
-    }
+    public
+    override
+    nonReentrant
+    whenNotPaused
+    returns (uint256)
+{
+    require(assets > 0, "Cannot deposit 0");
+    uint256 shares = super.deposit(assets, receiver);
+    totalDeposited += assets;
+    emit Deposited(receiver, assets, shares);
 
-    function mint(uint256 shares, address receiver)
-        public
-        override
-        nonReentrant
-        whenNotPaused
-        returns (uint256)
-    {
-        require(shares > 0, "Cannot mint 0");
-        uint256 assets = super.mint(shares, receiver);
-        totalDeposited += assets;
-        emit Deposited(receiver, assets, shares);
-        return assets;
-    }
+    //  Trigger rebalance automatically after deposit
+    // rebalance();
+
+    return shares;
+}
+
+function mint(uint256 shares, address receiver)
+    public
+    override
+    nonReentrant
+    whenNotPaused
+    returns (uint256)
+{
+    require(shares > 0, "Cannot mint 0");
+    uint256 assets = super.mint(shares, receiver);
+    totalDeposited += assets;
+    emit Deposited(receiver, assets, shares);
+
+    // Trigger rebalance automatically after mint
+    
+    // rebalance();
+
+
+    return assets;
+}
 
     // ------------------------------
     // Withdraw / Redeem
@@ -122,32 +132,41 @@ contract YieldVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
     }
 
     function redeem(uint256 shares, address receiver, address owner)
-        public
-        override
-        nonReentrant
-        returns (uint256)
-    {
-        require(shares > 0, "Cannot redeem 0");
-        require(balanceOf(owner) >= shares, "Insufficient shares");
+    public
+    override
+    nonReentrant
+    returns (uint256)
+{
+    require(shares > 0, "Cannot redeem 0");
+    require(balanceOf(owner) >= shares, "Insufficient shares");
 
-        uint256 assets = convertToAssets(shares);
-        uint256 fee = (assets * withdrawalFee) / BASIS_POINTS;
-        uint256 assetsAfterFee = assets - fee;
+    // Compute underlying assets owed
+    uint256 assets = convertToAssets(shares);
 
-        _proportionalWithdrawFromStrategies(assets);
-        _burn(owner, shares);
+    // Apply withdrawal fee
+    uint256 fee = (assets * withdrawalFee) / BASIS_POINTS;
+    uint256 assetsAfterFee = assets - fee;
 
-        IERC20(asset()).safeTransfer(receiver, assetsAfterFee);
+    // Pull proportional liquidity from all strategies
+    _proportionalWithdrawFromStrategies(assets);
 
-        if (fee > 0 && feeRecipient != address(0)) {
-            IERC20(asset()).safeTransfer(feeRecipient, fee);
-            emit FeesCollected(fee, "withdrawal");
-        }
+    // Burn user's shares *after* liquidity is ensured
+    _burn(owner, shares);
 
-        totalWithdrawn += assets;
-        emit Withdrawn(receiver, assetsAfterFee, shares);
-        return assetsAfterFee;
+    // Transfer assets to receiver
+    IERC20(asset()).safeTransfer(receiver, assetsAfterFee);
+
+    // Transfer fee to fee recipient
+    if (fee > 0 && feeRecipient != address(0)) {
+        IERC20(asset()).safeTransfer(feeRecipient, fee);
+        emit FeesCollected(fee, "withdrawal");
     }
+
+    totalWithdrawn += assets;
+    emit Withdrawn(receiver, assetsAfterFee, shares);
+    return assetsAfterFee;
+}
+
 
     // ------------------------------
     // Strategy Withdraw Helpers
@@ -194,7 +213,10 @@ contract YieldVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
     // ------------------------------
     // Rebalance (proportional deposits)
     // ------------------------------
-    function rebalance() external onlyOwner nonReentrant {
+
+    
+
+    function rebalance() public onlyOwner nonReentrant {
         uint256 count = strategyManager.getStrategyCount();
         require(count > 0, "No strategies");
 
