@@ -78,6 +78,54 @@
   --color-sidebar-border: var(--sidebar-border);
 
   --color-sidebar-ring: var(--sidebar-ring);
+  @keyframes onloadopacity {
+  24% {
+    opacity: 0;
+    }
+  100% {
+    opacity: 1;
+    }
+  }
+  @keyframes onloadbgt {
+  0% {
+    translate: 0 -70%;
+    opacity: 0.3;
+    }
+  100% {
+    translate: 0 -64%;
+    opacity: 0.8;
+    }
+  }
+  @keyframes onloadbgb {
+  0% {
+    translate: 0 70%;
+    opacity: 0.3;
+    }
+  100% {
+    translate: 0 64%;
+    opacity: 0.8;
+    }
+  }
+  @keyframes fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  }
+  @keyframes fade-up {
+  0% {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  }
 }
 
 :root {
