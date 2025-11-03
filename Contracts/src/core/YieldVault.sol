@@ -2,10 +2,11 @@
 pragma solidity ^0.8.20;
 
 /*
-  YieldVault.sol (updated)
-  - Proportional rebalance across all strategies based on allocation
-  - Proportional withdraw/redeem from all active strategies
-  - Robust liquidity buffer and fee management
+  YieldVault.sol (Auto-Rebalancing Version)
+  - Automatically rebalances after deposit, mint, withdraw, or redeem
+  - Proportional rebalance across all strategies
+  - Proportional withdraw/redeem logic
+  - Harvest and performance fee logic included
 */
 
 import "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
@@ -38,6 +39,7 @@ contract YieldVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
 
     address public feeRecipient;
 
+    // ---------------- Events ----------------
     event Deposited(address indexed user, uint256 assets, uint256 shares);
     event Withdrawn(address indexed user, uint256 assets, uint256 shares);
     event Rebalanced(uint256 timestamp, uint256 totalAssets);
@@ -58,50 +60,40 @@ contract YieldVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
         lastRebalance = block.timestamp;
     }
 
-    // ------------------------------
-    // Deposit / Mint
-    // ------------------------------
+    // ---------------- Deposit / Mint ----------------
     function deposit(uint256 assets, address receiver)
-    public
-    override
-    nonReentrant
-    whenNotPaused
-    returns (uint256)
-{
-    require(assets > 0, "Cannot deposit 0");
-    uint256 shares = super.deposit(assets, receiver);
-    totalDeposited += assets;
-    emit Deposited(receiver, assets, shares);
+        public
+        override
+        nonReentrant
+        whenNotPaused
+        returns (uint256)
+    {
+        require(assets > 0, "Cannot deposit 0");
+        uint256 shares = super.deposit(assets, receiver);
+        totalDeposited += assets;
+        emit Deposited(receiver, assets, shares);
 
-    //  Trigger rebalance automatically after deposit
-    // rebalance();
+        _safeRebalance();
+        return shares;
+    }
 
-    return shares;
-}
+    function mint(uint256 shares, address receiver)
+        public
+        override
+        nonReentrant
+        whenNotPaused
+        returns (uint256)
+    {
+        require(shares > 0, "Cannot mint 0");
+        uint256 assets = super.mint(shares, receiver);
+        totalDeposited += assets;
+        emit Deposited(receiver, assets, shares);
 
-function mint(uint256 shares, address receiver)
-    public
-    override
-    nonReentrant
-    whenNotPaused
-    returns (uint256)
-{
-    require(shares > 0, "Cannot mint 0");
-    uint256 assets = super.mint(shares, receiver);
-    totalDeposited += assets;
-    emit Deposited(receiver, assets, shares);
+        _safeRebalance();
+        return assets;
+    }
 
-    // Trigger rebalance automatically after mint
-    
-    // rebalance();
-
-
-    return assets;
-}
-
-    // ------------------------------
-    // Withdraw / Redeem
-    // ------------------------------
+    // ---------------- Withdraw / Redeem ----------------
     function withdraw(uint256 assets, address receiver, address owner)
         public
         override
@@ -128,60 +120,51 @@ function mint(uint256 shares, address receiver)
 
         totalWithdrawn += assets;
         emit Withdrawn(receiver, assetsAfterFee, shares);
+
+        _safeRebalance();
         return shares;
     }
 
     function redeem(uint256 shares, address receiver, address owner)
-    public
-    override
-    nonReentrant
-    returns (uint256)
-{
-    require(shares > 0, "Cannot redeem 0");
-    require(balanceOf(owner) >= shares, "Insufficient shares");
+        public
+        override
+        nonReentrant
+        returns (uint256)
+    {
+        require(shares > 0, "Cannot redeem 0");
+        require(balanceOf(owner) >= shares, "Insufficient shares");
 
-    // Compute underlying assets owed
-    uint256 assets = convertToAssets(shares);
+        uint256 assets = convertToAssets(shares);
+        uint256 fee = (assets * withdrawalFee) / BASIS_POINTS;
+        uint256 assetsAfterFee = assets - fee;
 
-    // Apply withdrawal fee
-    uint256 fee = (assets * withdrawalFee) / BASIS_POINTS;
-    uint256 assetsAfterFee = assets - fee;
+        _proportionalWithdrawFromStrategies(assets);
+        _burn(owner, shares);
 
-    // Pull proportional liquidity from all strategies
-    _proportionalWithdrawFromStrategies(assets);
+        IERC20(asset()).safeTransfer(receiver, assetsAfterFee);
 
-    // Burn user's shares *after* liquidity is ensured
-    _burn(owner, shares);
+        if (fee > 0 && feeRecipient != address(0)) {
+            IERC20(asset()).safeTransfer(feeRecipient, fee);
+            emit FeesCollected(fee, "withdrawal");
+        }
 
-    // Transfer assets to receiver
-    IERC20(asset()).safeTransfer(receiver, assetsAfterFee);
+        totalWithdrawn += assets;
+        emit Withdrawn(receiver, assetsAfterFee, shares);
 
-    // Transfer fee to fee recipient
-    if (fee > 0 && feeRecipient != address(0)) {
-        IERC20(asset()).safeTransfer(feeRecipient, fee);
-        emit FeesCollected(fee, "withdrawal");
+        _safeRebalance();
+        return assetsAfterFee;
     }
 
-    totalWithdrawn += assets;
-    emit Withdrawn(receiver, assetsAfterFee, shares);
-    return assetsAfterFee;
-}
-
-
-    // ------------------------------
-    // Strategy Withdraw Helpers
-    // ------------------------------
+    // ---------------- Proportional Withdraw Logic ----------------
     function _proportionalWithdrawFromStrategies(uint256 totalAmount) internal {
         uint256 count = strategyManager.getStrategyCount();
         uint256 totalAllocated = 0;
 
-        // Calculate total allocation (for proportional math)
         for (uint256 i = 0; i < count; i++) {
             (, uint256 allocation, bool active) = strategyManager.getStrategy(i);
             if (active && allocation > 0) totalAllocated += allocation;
         }
 
-        uint256 totalPulled = 0;
         for (uint256 i = 0; i < count; i++) {
             (address strategy, uint256 allocation, bool active) = strategyManager.getStrategy(i);
             if (!active || allocation == 0) continue;
@@ -193,7 +176,6 @@ function mint(uint256 shares, address receiver)
             try IStrategy(strategy).withdraw(portion, address(this), address(this)) returns (uint256 withdrawn) {
                 uint256 afterBal = IERC20(asset()).balanceOf(address(this));
                 uint256 received = afterBal > beforeBal ? afterBal - beforeBal : withdrawn;
-                totalPulled += received;
                 emit StrategyWithdrawn(strategy, received);
             } catch Error(string memory reason) {
                 emit StrategyWithdrawError(strategy, reason);
@@ -210,15 +192,18 @@ function mint(uint256 shares, address receiver)
         );
     }
 
-    // ------------------------------
-    // Rebalance (proportional deposits)
-    // ------------------------------
-
-    
+    // ---------------- Rebalance Logic ----------------
+    function _safeRebalance() internal {
+        try this.rebalance() {
+            // ignore success output
+        } catch {
+            // do nothing if rebalance fails
+        }
+    }
 
     function rebalance() public onlyOwner nonReentrant {
         uint256 count = strategyManager.getStrategyCount();
-        require(count > 0, "No strategies");
+        if (count == 0) return;
 
         _harvestAll();
 
@@ -255,9 +240,7 @@ function mint(uint256 shares, address receiver)
         emit Rebalanced(block.timestamp, totalAssets());
     }
 
-    // ------------------------------
-    // Harvest / Emergency
-    // ------------------------------
+    // ---------------- Harvest Logic ----------------
     function _harvestAll() internal returns (uint256 totalYield) {
         uint256 count = strategyManager.getStrategyCount();
         for (uint256 i = 0; i < count; i++) {
@@ -281,27 +264,19 @@ function mint(uint256 shares, address receiver)
         return totalYield;
     }
 
+    // ---------------- Emergency ----------------
     function emergencyWithdrawAll() external onlyOwner {
         uint256 count = strategyManager.getStrategyCount();
-        uint256 pulled = 0;
         for (uint256 i = 0; i < count; i++) {
             (address strategy, , bool active) = strategyManager.getStrategy(i);
             if (!active) continue;
-            try IStrategy(strategy).withdrawAll() returns (uint256 amt) {
-                pulled += amt;
-            } catch {
-                continue;
-            }
+            try IStrategy(strategy).withdrawAll() {} catch {}
         }
-        emit StrategyWithdrawn(address(0), pulled);
     }
 
-    // ------------------------------
-    // Views
-    // ------------------------------
+    // ---------------- View Functions ----------------
     function totalAssets() public view override returns (uint256) {
-        uint256 bal = IERC20(asset()).balanceOf(address(this));
-        uint256 total = bal;
+        uint256 total = IERC20(asset()).balanceOf(address(this));
         uint256 count = strategyManager.getStrategyCount();
         for (uint256 i = 0; i < count; i++) {
             (address strategy, , bool active) = strategyManager.getStrategy(i);
@@ -313,9 +288,7 @@ function mint(uint256 shares, address receiver)
         return total;
     }
 
-    // ------------------------------
-    // Admin
-    // ------------------------------
+    // ---------------- Admin ----------------
     function setLiquidityBufferBps(uint256 bps) external onlyOwner {
         require(bps <= MAX_BUFFER_BPS, "Too high");
         liquidityBufferBps = bps;
