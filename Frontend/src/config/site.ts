@@ -21,8 +21,8 @@ export const siteConfig = {
       href: "/pools",
     },
     {
-      label: "Stats",
-      href: "/stats",
+      label: "Contact",
+      href: "/contact",
     },
   ],
   // navMenuItems: [

@@ -2,14 +2,13 @@ import { Route, Routes } from "react-router-dom";
 
 import IndexPage from "@/pages/index";
 import Pools from "@/pages/Pools";
-// import AboutPage from "@/pages/about";
 import { WagmiProvider } from "wagmi";
 import { config } from "./config/config";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Testing from "@/pages/Testing";
 import Vault from "@/pages/Vault";
 import { ThirdwebProvider } from "thirdweb/react";
-import ContractStatsPage from "./pages/ContractStats";
+import ContactPage from "./pages/contact";
 // import { client } from "./config/ThirdWeb";
 
 const queryClient = new QueryClient();
@@ -24,7 +23,7 @@ function App() {
             <Route element={<Testing />} path="/testing" />
             <Route element={<Pools />} path="/pools" />
             <Route element={<Vault />} path="/vault" />
-            <Route element={<ContractStatsPage />} path="/stats" />
+            <Route element={<ContactPage />} path="/contact" />
           </Routes>
         </QueryClientProvider>
       </ThirdwebProvider>

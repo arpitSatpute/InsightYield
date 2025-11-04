@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { ArrowRight, ChevronRight, TrendingUp, Wallet, Activity, DollarSign } from 'lucide-react';
+import { ArrowRight, ChevronRight, TrendingUp, Wallet, Activity, DollarSign, Landmark, Gauge, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAccount } from 'wagmi';
+import { Link } from 'react-router-dom';
 
 export default function YieldAggregatorLanding() {
 
@@ -17,35 +18,67 @@ export default function YieldAggregatorLanding() {
         setConnectionStatus(isConnected);
     }, [isConnected]);
 
+    // Helper: get icon color based on strategy
+    function getIconColor(strategyName: string) {
+        switch (strategyName) {
+            case 'Lending Pool':
+                return 'bg-gray-900 text-white';
+            case 'Liquidity Pool':
+                return 'bg-gray-900 text-white';
+            case 'Strategy Pool':
+                return 'bg-gray-900 text-white';
+            default:
+                return 'bg-gray-900 text-white';
+        }
+    }
+
     const pools = [
         {
             id: 1,
             name: 'Lending Pool',
             protocol: 'Aave V3',
-            apy: 12.8,
+            apy: 4,
             allocation: 40,
             tvl: 5139025,
-            icon: '🏦'
+            icon: 'Landmark',
+            color: 'bg-indigo-500/10 text-indigo-500'
         },
         {
             id: 2,
             name: 'Liquidity Pool',
             protocol: 'Uniswap V3',
-            apy: 24.5,
-            allocation: 35,
+            apy: 12,
+            allocation: 30,
             tvl: 4496647,
-            icon: '💧'
+            icon: 'Gauge',
+            color: 'bg-cyan-500/10 text-cyan-500'
         },
         {
             id: 3,
             name: 'Strategy Pool',
             protocol: 'Yearn Finance',
-            apy: 19.2,
-            allocation: 25,
+            apy: 7,
+            allocation: 30,
             tvl: 3211891,
-            icon: '⚡'
+            icon: 'Zap',
+            color: 'bg-orange-500/10 text-orange-500'
         }
     ];
+
+    // Helper: render icon based on icon name
+    function renderIcon(iconName: string, size: number = 24) {
+        const iconProps = { width: size, height: size };
+        switch (iconName) {
+            case 'Landmark':
+                return <Landmark {...iconProps} />;
+            case 'Gauge':
+                return <Gauge {...iconProps} />;
+            case 'Zap':
+                return <Zap {...iconProps} />;
+            default:
+                return <Landmark {...iconProps} />;
+        }
+    }
 
     useEffect(() => {
         const interval = setInterval(() => {
@@ -107,30 +140,25 @@ export default function YieldAggregatorLanding() {
                             </p>
 
                             <div className="mt-12 flex flex-col items-center justify-center gap-2 md:flex-row">
-                                {!connectionStatus ? (
-                                    <div className="bg-foreground/10 rounded-[14px] border p-0.5">
-                                        <Button
-                                            size="lg"
-                                            className="rounded-xl px-5 text-base">
-                                            <Wallet className="mr-2 size-4" />
-                                            <span className="text-nowrap">Connect Wallet</span>
-                                        </Button>
-                                    </div>
-                                ) : (
-                                    <div className="bg-foreground/10 rounded-[14px] border p-0.5">
-                                        <Button
-                                            size="lg"
-                                            className="rounded-xl px-5 text-base">
-                                            <TrendingUp className="mr-2 size-4" />
+                               
+                                <div className="bg-foreground/10 rounded-[14px] border p-0.5">
+                                    <Button
+                                        size="lg"
+                                        className="rounded-xl px-5 text-base">
+                                        <TrendingUp className="mr-2 size-4" />
+                                        <Link to="/vault">
                                             <span className="text-nowrap">Start Earning</span>
-                                        </Button>
-                                    </div>
-                                )}
+                                        </Link>
+                                    </Button>
+                                </div>
+                            
                                 <Button
                                     size="lg"
                                     variant="ghost"
                                     className="h-10.5 rounded-xl px-5">
-                                    <span className="text-nowrap">View Strategies</span>
+                                        <Link to="/pools">
+                                            <span className="text-nowrap">View Strategies</span>
+                                        </Link>
                                 </Button>
                             </div>
                         </div>
@@ -187,7 +215,9 @@ export default function YieldAggregatorLanding() {
                                     key={pool.id}
                                     className="flex-1 inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-background relative overflow-hidden rounded-2xl border p-6 shadow-lg shadow-zinc-950/15 ring-1 hover:ring-2 hover:ring-primary/20 transition-all duration-300">
                                     <div className="flex items-start justify-between mb-4">
-                                        <div className="text-4xl">{pool.icon}</div>
+                                        <div className={`w-14 h-14 ${getIconColor(pool.name)} rounded-lg flex items-center justify-center`}>
+                                            {renderIcon(pool.icon, 28)}
+                                        </div>
                                         <div className="px-3 py-1 bg-muted rounded-full text-xs font-semibold">
                                             {pool.allocation}% Allocation
                                         </div>
@@ -263,10 +293,12 @@ export default function YieldAggregatorLanding() {
                                 Join thousands of DeFi users earning optimized returns with our automated yield aggregator
                             </p>
                             <div className="bg-foreground/10 rounded-[14px] border p-0.5 inline-block">
-                                <Button size="lg" className="rounded-xl px-8 text-base">
-                                    Launch App
-                                    <ArrowRight className="ml-2 size-4" />
-                                </Button>
+                                <Link to="/vault">
+                                    <Button size="lg" className="rounded-xl px-8 text-base">
+                                        Launch App
+                                        <ArrowRight className="ml-2 size-4" />
+                                    </Button>
+                                </Link>
                             </div>
                         </div>
                     </div>
