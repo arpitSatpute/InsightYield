@@ -634,7 +634,7 @@ export default function Testing() {
           )}
 
           {isSuccess && hash && (
-            <div className="p-4 bg-green-100 dark:bg-green-950 border border-green-400 dark:border-green-700 text-green-700 dark:text-green-300 rounded">
+            <div className="p-4 bg-cyan-100 dark:bg-cyan-950 border border-cyan-400 dark:border-cyan-700 text-cyan-700 dark:text-cyan-300 rounded">
               <strong>Success!</strong>
               <br />
               <span className="text-sm break-all">
@@ -767,7 +767,7 @@ export default function Testing() {
           )}
 
           {vaultStats && (
-            <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-300 dark:border-green-700 rounded-lg">
+            <div className="p-4 bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-300 dark:border-cyan-700 rounded-lg">
               <h3 className="font-bold text-lg mb-2">Vault Statistics</h3>
               <pre className="bg-white dark:bg-gray-800 p-3 rounded overflow-x-auto text-sm">
                 {JSON.stringify(
