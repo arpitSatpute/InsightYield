@@ -6,385 +6,58 @@ import {
   writeContract,
   waitForTransactionReceipt,
 } from "wagmi/actions";
-import { useState } from "react";
-
-import VUSDT_ABI from "../abis/vUSDTAbi.json";
-import YIELD_VAULT_ABI from "../abis/YieldVaultAbi.json";
-import STRATEGY_MANAGER_ABI from "../abis/StrategyManagerAbi.json";
-import LENDING_STRATEGY_ABI from "../abis/LendingStrategyAbi.json";
-import LIQUIDITY_STRATEGY_ABI from "../abis/LiquidityStrategyAbi.json";
-import STAKING_STRATEGY_ABI from "../abis/StakingStrategyAbi.json";
-import { config } from "@/config/config";
+import { useState, useEffect } from "react";
 import { Button } from "@heroui/button";
-import { formatUnits } from "viem";
+import { formatUnits, parseUnits } from "viem";
+import YIELD_VAULT_ABI from "../abis/YieldVaultAbi.json";
+import { config } from "@/config/config";
+import { Lock, Settings, Zap, AlertCircle, CheckCircle, Loader, RotateCw, Shield } from "lucide-react";
 
-const ADMIN_WALLET_ADDRESS = import.meta.env.VITE_ADMIN_WALLET_ADDRESS as `0x${string}`;
+const ADMIN_WALLET_ADDRESS = import.meta.env.VITE_ADMIN_WALLET_ADDRESS  as `0x${string}`;
+const YIELD_VAULT_ADDRESS = import.meta.env.VITE_YIELD_VAULT_ADDRESS as `0x${string}`;
 
-export default function Testing() {
+interface VaultSettings {
+  performanceFee: number;
+  withdrawalFee: number;
+  liquidityBufferBps: number;
+  feeRecipient: string;
+  isPaused: boolean;
+  totalDeposited: number;
+  totalWithdrawn: number;
+  lastRebalance: number;
+}
+
+export default function AdminPage() {
   const { address } = useAccount();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [hash, setHash] = useState<string | null>(null);
-  const [isSuccess, setIsSuccess] = useState(false);
 
-  // Display states
-  const [vusdtBalance, setVusdtBalance] = useState<string | null>(null);
-  const [strategyAssets, setStrategyAssets] = useState<{
-    lending: string | null;
-    staking: string | null;
-    liquidity: string | null;
-  }>({ lending: null, staking: null, liquidity: null });
-  const [vaultStats, setVaultStats] = useState<any>(null);
-  const [strategyInfo, setStrategyInfo] = useState<any>(null);
-  const [flexBalance, setFlexBalance] = useState<any>(null);
-  const [vaultDetails, setVaultDetails] = useState<any>(null);
-  const [apy , setApy] = useState<string | null>(null);
-  const [flexCoin , setFlexCoin] = useState<string | null>(null);
-  const [AmountInStrategy , setAmountInStrategy] = useState<string | null>(null);
-
-  const VUSDT_ADDRESS = import.meta.env.VITE_VUSDT_ADDRESS as `0x${string}`;
-  const YIELD_VAULT_ADDRESS = import.meta.env
-    .VITE_YIELD_VAULT_ADDRESS as `0x${string}`;
-  const STRATEGY_MANAGER_ADDRESS = import.meta.env
-    .VITE_STRATEGY_MANAGER_ADDRESS as `0x${string}`;
-  const LENDING_STRATEGY_ADDRESS = import.meta.env
-    .VITE_LENDING_STRATEGY_ADDRESS as `0x${string}`;
-  const LIQUIDITY_STRATEGY_ADDRESS = import.meta.env
-    .VITE_LIQUIDITY_STRATEGY_ADDRESS as `0x${string}`;
-  const STAKING_STRATEGY_ADDRESS = import.meta.env
-    .VITE_STAKING_STRATEGY_ADDRESS as `0x${string}`;
+  // Form states
+  const [performanceFee, setPerformanceFee] = useState<string>("1000");
+  const [withdrawalFee, setWithdrawalFee] = useState<string>("50");
+  const [liquidityBuffer, setLiquidityBuffer] = useState<string>("500");
+  const [feeRecipient, setFeeRecipient] = useState<string>("");
+  const [vaultSettings, setVaultSettings] = useState<VaultSettings | null>(null);
 
   // Check if user is admin
-  const isAdmin = address?.toLowerCase() === ADMIN_WALLET_ADDRESS.toLowerCase();
+    const isAdmin = !!(address && ADMIN_WALLET_ADDRESS && address.toLowerCase() === ADMIN_WALLET_ADDRESS.toLowerCase());
 
-  const handleAirdrop = async () => {
-    if (!address) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-      setIsSuccess(false);
-
-      const hasClaimed = (await readContract(config, {
-        address: VUSDT_ADDRESS,
-        abi: VUSDT_ABI,
-        functionName: "hasClaimed",
-        args: [address],
-      })) as boolean;
-
-      if (hasClaimed) {
-        setError("You have already claimed your airdrop!");
-        return;
-      }
-
-      const tx = await writeContract(config, {
-        address: VUSDT_ADDRESS,
-        abi: VUSDT_ABI,
-        functionName: "airdrop",
-      });
-
-      setHash(tx);
-
-      const receipt = await waitForTransactionReceipt(config, { hash: tx });
-
-      if (receipt.status === "success") {
-        setIsSuccess(true);
-      } else {
-        setError("Airdrop transaction failed.");
-      }
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Airdrop failed.");
-    } finally {
-      setLoading(false);
+  // Auto-load settings when component mounts
+  useEffect(() => {
+    if (isAdmin && address) {
+      loadVaultSettings();
     }
-  };
+  }, [isAdmin, address]);
 
-  const loadBalances = async () => {
+  // ==================== Admin Functions ====================
+
+  const loadVaultSettings = async () => {
     if (!address) return;
     try {
-      const balance = (await readContract(config, {
-        address: YIELD_VAULT_ADDRESS,
-        abi: YIELD_VAULT_ABI,
-        functionName: "balanceOf",
-        args: [address],
-      })) as bigint;
-
-      setVusdtBalance(formatUnits(balance, 18));
-      console.log("vUSDT Balance:", balance);
-    } catch (err) {
-      console.error("Failed to load balances:", err);
-      setError("Failed to load balances");
-    }
-  };
-
-  const getLendingStrategy = async () => {
-    try {
-      const lendingStrategyAssets = (await readContract(config, {
-        address: LENDING_STRATEGY_ADDRESS,
-        abi: LENDING_STRATEGY_ABI,
-        functionName: "totalAssets",
-        account: address,
-      })) as bigint;
-
-      const stakingStrategyAssets = (await readContract(config, {
-        address: STAKING_STRATEGY_ADDRESS,
-        abi: STAKING_STRATEGY_ABI,
-        functionName: "totalAssets",
-        account: address,
-      })) as bigint;
-
-      const liquidityStrategyAssets = (await readContract(config, {
-        address: LIQUIDITY_STRATEGY_ADDRESS,
-        abi: LIQUIDITY_STRATEGY_ABI,
-        functionName: "totalAssets",
-        account: address,
-      })) as bigint;
-
-      setStrategyAssets({
-        lending: formatUnits(lendingStrategyAssets, 18),
-        staking: formatUnits(stakingStrategyAssets, 18),
-        liquidity: formatUnits(liquidityStrategyAssets, 18),
-      });
-
-      console.log("Lending Strategy Total Assets:", lendingStrategyAssets);
-      console.log("Staking Strategy Total Assets:", stakingStrategyAssets);
-      console.log("Liquidity Strategy Total Assets:", liquidityStrategyAssets);
-    } catch (err) {
-      console.error("Failed to get Strategy Assets:", err);
-      setError("Failed to get strategy assets");
-    }
-  };
-
-  const mintToStrategy = async () => {
-    try {
       setLoading(true);
-      const lending = await writeContract(config, {
-        address: VUSDT_ADDRESS,
-        abi: VUSDT_ABI,
-        functionName: "mint",
-        args: [LENDING_STRATEGY_ADDRESS, 1_000_000n * BigInt(1e18)],
-        account: address,
-        gas: 12_000_000n,
-      });
-
-      const receipt = await waitForTransactionReceipt(config, {
-        hash: lending,
-      });
-      console.log("Transaction confirmed:", receipt);
-      setHash(lending);
-
-      const staking = await writeContract(config, {
-        address: VUSDT_ADDRESS,
-        abi: VUSDT_ABI,
-        functionName: "mint",
-        args: [STAKING_STRATEGY_ADDRESS, 1_000_000n * BigInt(1e18)],
-        account: address,
-        gas: 12_000_000n,
-      });
-
-      const stakingReceipt = await waitForTransactionReceipt(config, {
-        hash: staking,
-      });
-      console.log("Transaction confirmed:", stakingReceipt);
-
-      const liquidity = await writeContract(config, {
-        address: VUSDT_ADDRESS,
-        abi: VUSDT_ABI,
-        functionName: "mint",
-        args: [LIQUIDITY_STRATEGY_ADDRESS, 1_000_000n * BigInt(1e18)],
-        account: address,
-        gas: 12_000_000n,
-      });
-
-      const liquidityReceipt = await waitForTransactionReceipt(config, {
-        hash: liquidity,
-      });
-      console.log("Transaction confirmed:", liquidityReceipt);
-
-      setIsSuccess(true);
-    } catch (err) {
-      console.error("Failed to mint to strategy:", err);
-      setError("Failed to mint to strategy");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-
-  const mintToVault = async () => {
-    try {
-      setLoading(true);
-      const lending = await writeContract(config, {
-        address: VUSDT_ADDRESS,
-        abi: VUSDT_ABI,
-        functionName: "mint",
-        args: [YIELD_VAULT_ADDRESS, 1_000_000n * BigInt(1e18)],
-        account: address,
-        gas: 12_000_000n,
-      });
-
-      const receipt = await waitForTransactionReceipt(config, {
-        hash: lending,
-      });
-      console.log("Transaction confirmed:", receipt);
-      setHash(lending);
-  } catch (err) {} finally {
-      setLoading(false);
-    }
-  };
-
-
-
-
-
-  const rebalance = async () => {
-    try {
-      setLoading(true);
-      const txHash = await writeContract(config, {
-        address: YIELD_VAULT_ADDRESS,
-        abi: YIELD_VAULT_ABI,
-        functionName: "rebalance",
-        account: address,
-        gas: 12_000_000n,
-      });
-
-      console.log("Rebalance tx:", txHash);
-      const receipt = await waitForTransactionReceipt(config, { hash: txHash });
-      console.log("Transaction confirmed:", receipt);
-      setHash(txHash);
-      setIsSuccess(true);
-    } catch (err) {
-      console.error("Failed to rebalance:", err);
-      setError("Failed to rebalance");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const harvestAll = async () => {
-    try {
-      setLoading(true);
-      const txHash = await writeContract(config, {
-        address: YIELD_VAULT_ADDRESS,
-        abi: YIELD_VAULT_ABI,
-        functionName: "harvestAll",
-        account: address,
-        // gas: 12_000_000n,
-      });
-
-      console.log("Harvest tx:", txHash);
-      const receipt = await waitForTransactionReceipt(config, { hash: txHash });
-      console.log("Transaction confirmed:", receipt);
-      setHash(txHash);
-      setIsSuccess(true);
-    } catch (err) {
-      console.error("Failed to harvest:", err);
-      setError("Failed to harvest");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getVaultStats = async () => {
-    try {
-      const totalAssets = await readContract(config, {
-        address: YIELD_VAULT_ADDRESS,
-        abi: YIELD_VAULT_ABI,
-        functionName: "getVaultStats",
-        account: address,
-      });
-
-      setVaultStats(totalAssets);
-      console.log("Yield Vault Total Assets:", totalAssets);
-    } catch (err) {
-      console.error("Failed to get Vault Stats:", err);
-      setError("Failed to get vault stats");
-    }
-  };
-
-  const getStratInfo = async () => {
-    try {
-      const stratInfo = await readContract(config, {
-        address: STRATEGY_MANAGER_ADDRESS,
-        abi: STRATEGY_MANAGER_ABI,
-        functionName: "getStrategy",
-        args: [1],
-        account: address,
-      });
-
-      setStrategyInfo(stratInfo);
-      console.log("Strategy Info:", stratInfo);
-    } catch (err) {
-      console.error("Failed to get Strategy Info:", err);
-      setError("Failed to get strategy info");
-    }
-  };
-
-  const insighBalanceFunc = async () => {
-    if (!address) return;
-    try {
-      const flexBalance = (await readContract(config, {
-        address: YIELD_VAULT_ADDRESS,
-        abi: YIELD_VAULT_ABI,
-        functionName: "balanceOf",
-        args: [address],
-      })) as bigint;
-
-      setFlexBalance(flexBalance);
-      console.log("FLEX Balance:", formatUnits(flexBalance, 18));
-    } catch (err) {
-      console.error("Failed to get FLEX balance:", err);
-      setError("Failed to get FLEX balance");
-    }
-  };
-
-  const getVaultDetails = async () => {
-    try {
-      const [
-        totalAssets,
-        vaultStats,
-        strategyBalances,
-        strategyAPYs,
-        estimatedAPY,
-        interval,
-        perfFee,
-        withdrawFee,
-        feeRecipient,
-        lastReb,
-        totalDep,
-        totalWdr,
-      ] = await Promise.all([
-        readContract(config, {
-          address: YIELD_VAULT_ADDRESS,
-          abi: YIELD_VAULT_ABI,
-          functionName: "totalAssets",
-        }),
-        readContract(config, {
-          address: YIELD_VAULT_ADDRESS,
-          abi: YIELD_VAULT_ABI,
-          functionName: "getVaultStats",
-        }),
-        readContract(config, {
-          address: YIELD_VAULT_ADDRESS,
-          abi: YIELD_VAULT_ABI,
-          functionName: "getStrategyBalances",
-        }),
-        readContract(config, {
-          address: YIELD_VAULT_ADDRESS,
-          abi: YIELD_VAULT_ABI,
-          functionName: "getStrategyAPYs",
-        }),
-        readContract(config, {
-          address: YIELD_VAULT_ADDRESS,
-          abi: YIELD_VAULT_ABI,
-          functionName: "estimatedVaultAPY",
-        }),
-        readContract(config, {
-          address: YIELD_VAULT_ADDRESS,
-          abi: YIELD_VAULT_ABI,
-          functionName: "rebalanceInterval",
-        }),
+      const [perfFee, withFee, buffer, recipient, paused, totalDep, totalWith, lastRebal] = await Promise.all([
         readContract(config, {
           address: YIELD_VAULT_ADDRESS,
           abi: YIELD_VAULT_ABI,
@@ -398,12 +71,17 @@ export default function Testing() {
         readContract(config, {
           address: YIELD_VAULT_ADDRESS,
           abi: YIELD_VAULT_ABI,
+          functionName: "liquidityBufferBps",
+        }),
+        readContract(config, {
+          address: YIELD_VAULT_ADDRESS,
+          abi: YIELD_VAULT_ABI,
           functionName: "feeRecipient",
         }),
         readContract(config, {
           address: YIELD_VAULT_ADDRESS,
           abi: YIELD_VAULT_ABI,
-          functionName: "lastRebalance",
+          functionName: "paused",
         }),
         readContract(config, {
           address: YIELD_VAULT_ADDRESS,
@@ -415,218 +93,315 @@ export default function Testing() {
           abi: YIELD_VAULT_ABI,
           functionName: "totalWithdrawn",
         }),
+        readContract(config, {
+          address: YIELD_VAULT_ADDRESS,
+          abi: YIELD_VAULT_ABI,
+          functionName: "lastRebalance",
+        }),
       ]);
 
-      setVaultDetails({
-        totalAssets: formatUnits(totalAssets as bigint, 18),
-        vaultStats,
-        strategyBalances,
-        strategyAPYs,
-        estimatedAPY,
-        interval,
-        perfFee,
-        withdrawFee,
-        feeRecipient,
-        lastReb,
-        totalDep,
-        totalWdr,
-      });
-    } catch (err) {
-      console.error("Failed to fetch vault details:", err);
-      setError("Failed to load vault view data");
-    }
-  };
-
-  const reedem = async () => {
-    if(!address) return ;
-    try {
-      const txn = await writeContract(config, {
-        address: YIELD_VAULT_ADDRESS,
-        abi: YIELD_VAULT_ABI,
-        functionName: "redeem",
-        args: [10n * BigInt(1e18), address , address],
-        account: address,
-        gas: 5000000n,
+      setVaultSettings({
+        performanceFee: Number(perfFee),
+        withdrawalFee: Number(withFee),
+        liquidityBufferBps: Number(buffer),
+        feeRecipient: recipient as string,
+        isPaused: paused as boolean,
+        totalDeposited: Number(totalDep),
+        totalWithdrawn: Number(totalWith),
+        lastRebalance: Number(lastRebal),
       });
 
-      console.log("Redeem tx:", txn);
-      const receipt = await waitForTransactionReceipt(config, { hash: txn });
-      console.log("Transaction confirmed:", receipt);
-    } catch (e){
-      console.error("Failed to redeem vUSDT" , e);
-    }
-  }
-
-  const paisaHaiKya = async() => {
-    if(!address) return ;
-    try {
-      const amountInStrategy = await readContract(config, {
-        address: VUSDT_ADDRESS,
-        abi: VUSDT_ABI,
-        functionName: "balanceOf",
-        args: ["0x7083674E2355799D333ECeE17E7670e594203f3d"],
-      });
-
-      console.log("Amount in strategy:", amountInStrategy);
-    } catch (error) {
-      console.error("Failed to fetch amount in strategy:", error);
-    }
-  }
-
-  const checkVaultLiquidity = async () => {
-    try {
-      const balance = (await readContract(config, {
-        address: VUSDT_ADDRESS,
-        abi: VUSDT_ABI,
-        functionName: "balanceOf",
-        args: [YIELD_VAULT_ADDRESS],
-      })) as bigint;
-
-      console.log(
-        "Vault Available Liquidity:",
-        Number(formatUnits(balance, 18)),
-        "vUSDT"
-      );
-    } catch (err) {
-      console.error("Failed to check liquidity:", err);
-    }
-  }
-
-  const withdrawFromStrategies = async () => {
-    if(!address) return;
-    try {
-      setLoading(true);
-      
-      // Withdraw from Lending Strategy
-      const lendingWithdraw = await writeContract(config, {
-        address: LENDING_STRATEGY_ADDRESS,
-        abi: LENDING_STRATEGY_ABI,
-        functionName: "withdraw",
-        args: [500n * BigInt(1e18), address, address], // Withdraw 500k
-        account: address,
-        gas: 5000000n,
-      });
-
-      const lendingReceipt = await waitForTransactionReceipt(config, { 
-        hash: lendingWithdraw 
-      });
-      console.log("Lending withdraw confirmed:", lendingReceipt);
-
-      // Withdraw from Staking Strategy
-      const stakingWithdraw = await writeContract(config, {
-        address: STAKING_STRATEGY_ADDRESS,
-        abi: STAKING_STRATEGY_ABI,
-        functionName: "withdraw",
-        args: [500_000n * BigInt(1e18), address, address],
-        account: address,
-        gas: 5000000n,
-      });
-
-      const stakingReceipt = await waitForTransactionReceipt(config, { 
-        hash: stakingWithdraw 
-      });
-      console.log("Staking withdraw confirmed:", stakingReceipt);
-
-      // Withdraw from Liquidity Strategy
-      const liquidityWithdraw = await writeContract(config, {
-        address: LIQUIDITY_STRATEGY_ADDRESS,
-        abi: LIQUIDITY_STRATEGY_ABI,
-        functionName: "withdraw",
-        args: [500_000n * BigInt(1e18), address, address],
-        account: address,
-        gas: 5000000n,
-      });
-
-      const liquidityReceipt = await waitForTransactionReceipt(config, { 
-        hash: liquidityWithdraw 
-      });
-      console.log("Liquidity withdraw confirmed:", liquidityReceipt);
-
-      setIsSuccess(true);
-      alert("Withdrew funds from all strategies!");
-    } catch (err) {
-      console.error("Failed to withdraw from strategies:", err);
-      setError("Failed to withdraw from strategies");
+      setPerformanceFee(perfFee?.toString() || "1000");
+      setWithdrawalFee(withFee?.toString() || "50");
+      setLiquidityBuffer(buffer?.toString() || "500");
+      setFeeRecipient((recipient as string) || "");
+    } catch (err: any) {
+      setError("Failed to load vault settings: " + err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // Also update redeem to try smaller amounts first
-  const redeemSmall = async () => {
-    if(!address) return;
+  const setPerformanceFeeFunc = async () => {
+    if (!address) return;
     try {
       setLoading(true);
-      
-      // First check available liquidity
-      const balance = await readContract(config, {
-        address: VUSDT_ADDRESS,
-        abi: VUSDT_ABI,
-        functionName: "balanceOf",
-        args: [YIELD_VAULT_ADDRESS],
+      setError(null);
+      setSuccess(null);
+
+      const tx = await writeContract(config, {
+        address: YIELD_VAULT_ADDRESS,
+        abi: YIELD_VAULT_ABI,
+        functionName: "setPerformanceFee",
+        args: [BigInt(performanceFee)],
+        account: address,
       });
 
-      // balance is returned as a bigint from readContract; cast and format properly
-      const availableLiquidity = Number(formatUnits(balance as bigint, 18));
-      console.log("Available vault liquidity:", availableLiquidity);
+      setHash(tx);
+      const receipt = await waitForTransactionReceipt(config, { hash: tx });
 
-      // Redeem max 50% of available liquidity
-      const redeemAmount = Math.floor(availableLiquidity * 0.5);
-      
-      if (redeemAmount === 0) {
-        alert("No liquidity available. Withdraw from strategies first!");
-        return;
+      if (receipt.status === "success") {
+        setSuccess(`Performance fee updated to ${(Number(performanceFee) / 100).toFixed(2)}%`);
+        await loadVaultSettings();
+      } else {
+        setError("Transaction failed");
       }
-
-      const txn = await writeContract(config, {
-        address: YIELD_VAULT_ADDRESS,
-        abi: YIELD_VAULT_ABI,
-        functionName: "redeem",
-        args: [BigInt(Math.floor(redeemAmount * 1e18)), address, address],
-        account: address,
-        gas: 5000000n,
-      });
-
-      console.log("Redeem tx:", txn);
-      const receipt = await waitForTransactionReceipt(config, { hash: txn });
-      console.log("Redemption confirmed:", receipt);
-      setIsSuccess(true);
-    } catch(e) {
-      console.error("Failed to redeem:", e);
-      setError("Failed to redeem");
+    } catch (err: any) {
+      setError("Failed to set performance fee: " + err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const getActiveStrategyCount = async () => {  
+  const setWithdrawalFeeFunc = async () => {
+    if (!address) return;
     try {
       setLoading(true);
-      const count = await readContract(config, {
-        address: STRATEGY_MANAGER_ADDRESS,
-        abi: STRATEGY_MANAGER_ABI,
-        functionName: "getActiveStrategies",
-        args: [],
+      setError(null);
+      setSuccess(null);
+
+      const tx = await writeContract(config, {
+        address: YIELD_VAULT_ADDRESS,
+        abi: YIELD_VAULT_ABI,
+        functionName: "setWithdrawalFee",
+        args: [BigInt(withdrawalFee)],
+        account: address,
       });
-      console.log("Active strategy count:", count);
-    } catch (error) {
-      console.error("Failed to get active strategy count:", error);
-      setError("Failed to get active strategy count");
+
+      setHash(tx);
+      const receipt = await waitForTransactionReceipt(config, { hash: tx });
+
+      if (receipt.status === "success") {
+        setSuccess(`Withdrawal fee updated to ${(Number(withdrawalFee) / 100).toFixed(2)}%`);
+        await loadVaultSettings();
+      } else {
+        setError("Transaction failed");
+      }
+    } catch (err: any) {
+      setError("Failed to set withdrawal fee: " + err.message);
     } finally {
       setLoading(false);
     }
   };
+
+  const setLiquidityBufferBpsFunc = async () => {
+    if (!address) return;
+    try {
+      setLoading(true);
+      setError(null);
+      setSuccess(null);
+
+      const tx = await writeContract(config, {
+        address: YIELD_VAULT_ADDRESS,
+        abi: YIELD_VAULT_ABI,
+        functionName: "setLiquidityBufferBps",
+        args: [BigInt(liquidityBuffer)],
+        account: address,
+      });
+
+      setHash(tx);
+      const receipt = await waitForTransactionReceipt(config, { hash: tx });
+
+      if (receipt.status === "success") {
+        setSuccess(`Liquidity buffer updated to ${(Number(liquidityBuffer) / 100).toFixed(2)}%`);
+        await loadVaultSettings();
+      } else {
+        setError("Transaction failed");
+      }
+    } catch (err: any) {
+      setError("Failed to set liquidity buffer: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const setFeeRecipientFunc = async () => {
+    if (!address || !feeRecipient) return;
+    try {
+      setLoading(true);
+      setError(null);
+      setSuccess(null);
+
+      const tx = await writeContract(config, {
+        address: YIELD_VAULT_ADDRESS,
+        abi: YIELD_VAULT_ABI,
+        functionName: "setFeeRecipient",
+        args: [feeRecipient as `0x${string}`],
+        account: address,
+      });
+
+      setHash(tx);
+      const receipt = await waitForTransactionReceipt(config, { hash: tx });
+
+      if (receipt.status === "success") {
+        setSuccess(`Fee recipient updated to ${feeRecipient}`);
+        await loadVaultSettings();
+      } else {
+        setError("Transaction failed");
+      }
+    } catch (err: any) {
+      setError("Failed to set fee recipient: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const rebalanceVault = async () => {
+    if (!address) return;
+    try {
+      setLoading(true);
+      setError(null);
+      setSuccess(null);
+
+      const tx = await writeContract(config, {
+        address: YIELD_VAULT_ADDRESS,
+        abi: YIELD_VAULT_ABI,
+        functionName: "rebalance",
+        account: address,
+      });
+
+      setHash(tx);
+      const receipt = await waitForTransactionReceipt(config, { hash: tx });
+
+      if (receipt.status === "success") {
+        setSuccess("Vault rebalanced successfully");
+        await loadVaultSettings();
+      } else {
+        setError("Transaction failed");
+      }
+    } catch (err: any) {
+      setError("Failed to rebalance vault: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const pauseVault = async () => {
+    if (!address) return;
+    try {
+      setLoading(true);
+      setError(null);
+      setSuccess(null);
+
+      const tx = await writeContract(config, {
+        address: YIELD_VAULT_ADDRESS,
+        abi: YIELD_VAULT_ABI,
+        functionName: "pause",
+        account: address,
+      });
+
+      setHash(tx);
+      const receipt = await waitForTransactionReceipt(config, { hash: tx });
+
+      if (receipt.status === "success") {
+        setSuccess("Vault paused successfully");
+        await loadVaultSettings();
+      } else {
+        setError("Transaction failed");
+      }
+    } catch (err: any) {
+      setError("Failed to pause vault: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const unpauseVault = async () => {
+    if (!address) return;
+    try {
+      setLoading(true);
+      setError(null);
+      setSuccess(null);
+
+      const tx = await writeContract(config, {
+        address: YIELD_VAULT_ADDRESS,
+        abi: YIELD_VAULT_ABI,
+        functionName: "unpause",
+        account: address,
+      });
+
+      setHash(tx);
+      const receipt = await waitForTransactionReceipt(config, { hash: tx });
+
+      if (receipt.status === "success") {
+        setSuccess("Vault unpaused successfully");
+        await loadVaultSettings();
+      } else {
+        setError("Transaction failed");
+      }
+    } catch (err: any) {
+      setError("Failed to unpause vault: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const emergencyWithdraw = async () => {
+    if (!address) return;
+    if (!window.confirm("Are you sure you want to perform emergency withdrawal? This action cannot be undone.")) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+      setSuccess(null);
+
+      const tx = await writeContract(config, {
+        address: YIELD_VAULT_ADDRESS,
+        abi: YIELD_VAULT_ABI,
+        functionName: "emergencyWithdrawAll",
+        account: address,
+      });
+
+      setHash(tx);
+      const receipt = await waitForTransactionReceipt(config, { hash: tx });
+
+      if (receipt.status === "success") {
+        setSuccess("Emergency withdrawal completed");
+      } else {
+        setError("Transaction failed");
+      }
+    } catch (err: any) {
+      setError("Failed to perform emergency withdrawal: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatTimestamp = (timestamp: number) => {
+    if (!timestamp || timestamp === 0) return "Never";
+    const date = new Date(timestamp * 1000);
+    return date.toLocaleString();
+  };
+
+  // ==================== Render ====================
 
   if (!address) {
     return (
       <DefaultLayout>
-        <section className="flex flex-col items-center justify-center gap-4 py-8 md:py-10 mt-26">
-          <h1 className={title()}>Admin Page</h1>
-          <div className="p-6 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded-lg text-center">
-            <p className="text-lg font-semibold text-yellow-800 dark:text-yellow-200">
-              Please connect your wallet to access this page
-            </p>
+        <section className="overflow-hidden bg-background min-h-screen">
+          {/* Background Effects */}
+          <div
+            aria-hidden
+            className="z-[2] absolute inset-0 pointer-events-none isolate opacity-50 contain-strict hidden lg:block">
+            <div className="w-[35rem] h-[80rem] -translate-y-[350px] absolute left-0 top-0 -rotate-45 rounded-full bg-[radial-gradient(68.54%_68.72%_at_55.02%_31.46%,hsla(0,0%,85%,.08)_0,hsla(0,0%,55%,.02)_50%,hsla(0,0%,45%,0)_80%)]" />
+            <div className="h-[80rem] absolute left-0 top-0 w-56 -rotate-45 rounded-full bg-[radial-gradient(50%_50%_at_50%_50%,hsla(0,0%,85%,.06)_0,hsla(0,0%,45%,.02)_80%,transparent_100%)] [translate:5%_-50%]" />
           </div>
+
+          <section className="relative py-24 md:py-36">
+            <div className="mx-auto max-w-7xl px-6">
+              <div className="flex flex-col items-center justify-center gap-6 text-center">
+                <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full border bg-muted/50 backdrop-blur-sm mb-6">
+                  <span className="text-sm">🔐 Restricted Access</span>
+                </div>
+                <h1 className={title()}>Admin Dashboard</h1>
+                <div className="p-8 bg-muted border border-muted-foreground/20 rounded-2xl text-center max-w-md">
+                  <p className="text-lg font-semibold text-foreground">
+                    Please connect your wallet to access this page
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
         </section>
       </DefaultLayout>
     );
@@ -635,19 +410,39 @@ export default function Testing() {
   if (!isAdmin) {
     return (
       <DefaultLayout>
-        <section className="flex flex-col items-center justify-center gap-4 py-8 md:py-10 mt-26">
-          <h1 className={title()}>Admin Page</h1>
-          <div className="p-6 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-lg text-center max-w-md">
-            <p className="text-lg font-semibold text-red-800 dark:text-red-200 mb-2">
-              Access Denied
-            </p>
-            <p className="text-sm text-red-700 dark:text-red-300">
-              You are not authorized to access this page. Only the admin wallet can view this page.
-            </p>
-            <p className="text-xs text-red-600 dark:text-red-400 mt-3 break-all">
-              Connected: {address}
-            </p>
+        <section className="overflow-hidden bg-background min-h-screen">
+          {/* Background Effects */}
+          <div
+            aria-hidden
+            className="z-[2] absolute inset-0 pointer-events-none isolate opacity-50 contain-strict hidden lg:block">
+            <div className="w-[35rem] h-[80rem] -translate-y-[350px] absolute left-0 top-0 -rotate-45 rounded-full bg-[radial-gradient(68.54%_68.72%_at_55.02%_31.46%,hsla(0,0%,85%,.08)_0,hsla(0,0%,55%,.02)_50%,hsla(0,0%,45%,0)_80%)]" />
+            <div className="h-[80rem] absolute left-0 top-0 w-56 -rotate-45 rounded-full bg-[radial-gradient(50%_50%_at_50%_50%,hsla(0,0%,85%,.06)_0,hsla(0,0%,45%,.02)_80%,transparent_100%)] [translate:5%_-50%]" />
           </div>
+
+          <section className="relative py-24 md:py-36">
+            <div className="mx-auto max-w-7xl px-6">
+              <div className="flex flex-col items-center justify-center gap-6 text-center">
+                <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full border bg-muted/50 backdrop-blur-sm mb-6">
+                  <span className="text-sm">🔐 Access Denied</span>
+                </div>
+                <h1 className={title()}>Admin Dashboard</h1>
+                <div className="p-8 bg-muted border border-muted-foreground/20 rounded-2xl text-center max-w-md">
+                  <div className="flex justify-center mb-4">
+                    <Lock className="w-12 h-12 text-muted-foreground" />
+                  </div>
+                  <p className="text-lg font-semibold text-foreground mb-3">
+                    Unauthorized Access
+                  </p>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    You are not authorized to access this page. Only the admin wallet can view this page.
+                  </p>
+                  <p className="text-xs text-muted-foreground break-all bg-background p-3 rounded border border-muted-foreground/20">
+                    Connected: {address}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
         </section>
       </DefaultLayout>
     );
@@ -655,295 +450,301 @@ export default function Testing() {
 
   return (
     <DefaultLayout>
-      <section className="flex flex-col items-center justify-center gap-4 py-8 md:py-10 mt-26">
-        <h1 className={title()}>Dev Page</h1>
-        <h3>{address || "Connect your wallet"}</h3>
-
-        <div className="flex flex-col gap-4 w-full max-w-md">
-          <button
-            onClick={handleAirdrop}
-            disabled={!address || loading}
-            className="px-6 py-3 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed"
-          >
-            {loading ? "Processing..." : "Airdrop USDT to Me"}
-          </button>
-
-          {error && (
-            <div className="p-4 bg-red-100 dark:bg-red-950 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-300 rounded">
-              <strong>Error:</strong> {error}
-            </div>
-          )}
-
-          {isSuccess && hash && (
-            <div className="p-4 bg-cyan-100 dark:bg-cyan-950 border border-cyan-400 dark:border-cyan-700 text-cyan-700 dark:text-cyan-300 rounded">
-              <strong>Success!</strong>
-              <br />
-              <span className="text-sm break-all">
-                Transaction Hash: {hash}
-              </span>
-            </div>
-          )}
+      <section className="overflow-hidden bg-background min-h-screen">
+        {/* Background Effects */}
+        <div
+          aria-hidden
+          className="z-[2] absolute inset-0 pointer-events-none isolate opacity-50 contain-strict hidden lg:block">
+          <div className="w-[35rem] h-[80rem] -translate-y-[350px] absolute left-0 top-0 -rotate-45 rounded-full bg-[radial-gradient(68.54%_68.72%_at_55.02%_31.46%,hsla(0,0%,85%,.08)_0,hsla(0,0%,55%,.02)_50%,hsla(0,0%,45%,0)_80%)]" />
+          <div className="h-[80rem] absolute left-0 top-0 w-56 -rotate-45 rounded-full bg-[radial-gradient(50%_50%_at_50%_50%,hsla(0,0%,85%,.06)_0,hsla(0,0%,45%,.02)_80%,transparent_100%)] [translate:5%_-50%]" />
         </div>
 
-        <div className="grid grid-cols-2 gap-4 w-full max-w-4xl mt-8">
-          <Button onClick={insighBalanceFunc} disabled={!address || loading}>
-            INSIGH balance
-          </Button>
-
-          <Button onClick={loadBalances} disabled={!address || loading}>
-            Load Balances
-          </Button>
-
-          <Button onClick={getLendingStrategy} disabled={!address || loading}>
-            Get All Total Assets
-          </Button>
-
-          <Button onClick={rebalance} disabled={!address || loading}>
-            Rebalance
-          </Button>
-
-          <Button onClick={harvestAll} disabled={!address || loading}>
-            Harvest All
-          </Button>
-
-          <Button onClick={mintToStrategy} disabled={!address || loading}>
-            Mint to Strategies
-          </Button>
-
-          <Button onClick={mintToVault} disabled={!address || loading}>
-            Mint to Vault
-          </Button>
-
-          <Button onClick={getVaultStats} disabled={!address || loading}>
-            Get Vault Stats
-          </Button>
-
-          <Button onClick={getStratInfo} disabled={!address || loading}>
-            Get Strategy Info
-          </Button>
-
-          <Button onClick={getVaultDetails} disabled={!address || loading}>
-            Get Vault View Data
-          </Button>
-
-          <Button onClick={reedem} disabled={!address || loading}>
-            Redeem 100 vUSDT
-          </Button>
-
-          <Button onClick={paisaHaiKya} disabled={!address || loading}>
-            Amount in Strategy
-          </Button>
-
-          <Button onClick={checkVaultLiquidity} disabled={!address || loading}>
-            Check Vault Liquidity
-          </Button>
-
-          <Button onClick={withdrawFromStrategies} disabled={!address || loading}>
-            💰 Withdraw from Strategies
-          </Button>
-
-          <Button onClick={redeemSmall} disabled={!address || loading}>
-            ✅ Redeem (Safe Amount)
-          </Button>
-
-          <Button onClick={getActiveStrategyCount} disabled={!address || loading}>
-            ✅ Get Active Strategy Count
-          </Button>
-        </div>
-
-        {/* Display Section */}
-
-        <div className="w-full max-w-4xl mt-8 space-y-4">
-          {flexBalance && (
-            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-700 rounded-lg">
-              <h3 className="font-bold text-lg mb-2">FLEX Balance</h3>
-              <p className="text-2xl font-mono">
-                {formatUnits(flexBalance, 18)} FLEX
-              </p>
-            </div>
-          )}
-
-          {vusdtBalance && (
-            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-700 rounded-lg">
-              <h3 className="font-bold text-lg mb-2">Vault Balance</h3>
-              <p className="text-2xl font-mono">
-                {parseFloat(vusdtBalance).toLocaleString()} vUSDT
-              </p>
-            </div>
-          )}
-
-          {(strategyAssets.lending ||
-            strategyAssets.staking ||
-            strategyAssets.liquidity) && (
-            <div className="p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-300 dark:border-purple-700 rounded-lg">
-              <h3 className="font-bold text-lg mb-3">Strategy Assets</h3>
-              <div className="space-y-2">
-                {strategyAssets.lending && (
-                  <div className="flex justify-between">
-                    <span className="font-semibold">Lending:</span>
-                    <span className="font-mono">
-                      {parseFloat(strategyAssets.lending).toLocaleString()} USDT
-                    </span>
-                  </div>
-                )}
-                {strategyAssets.staking && (
-                  <div className="flex justify-between">
-                    <span className="font-semibold">Staking:</span>
-                    <span className="font-mono">
-                      {parseFloat(strategyAssets.staking).toLocaleString()} USDT
-                    </span>
-                  </div>
-                )}
-                {strategyAssets.liquidity && (
-                  <div className="flex justify-between">
-                    <span className="font-semibold">Liquidity:</span>
-                    <span className="font-mono">
-                      {parseFloat(strategyAssets.liquidity).toLocaleString()}{" "}
-                      USDT
-                    </span>
-                  </div>
-                )}
+        <div className="relative py-12 md:py-16 mt-10">
+          <div className="mx-auto max-w-7xl px-6">
+            {/* Header */}
+            <div className="mb-12">
+              <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full border bg-muted/50 backdrop-blur-sm mb-6">
+                <Shield className="w-4 h-4" />
+                <span className="text-sm">🔐 Admin Control</span>
+              </div>
+              <div className="flex items-start justify-between gap-4 mb-3">
+                <div>
+                  <h1 className={title()}>Admin Dashboard</h1>
+                  <p className="text-muted-foreground mt-2">
+                    Manage YieldVault parameters, settings, and perform administrative actions
+                  </p>
+                </div>
               </div>
             </div>
-          )}
 
-          {vaultStats && (
-            <div className="p-4 bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-300 dark:border-cyan-700 rounded-lg">
-              <h3 className="font-bold text-lg mb-2">Vault Statistics</h3>
-              <pre className="bg-white dark:bg-gray-800 p-3 rounded overflow-x-auto text-sm">
-                {JSON.stringify(
-                  vaultStats,
-                  (key, value) =>
-                    typeof value === "bigint" ? value.toString() : value,
-                  2
-                )}
-              </pre>
-            </div>
-          )}
-
-          {strategyInfo && (
-            <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded-lg">
-              <h3 className="font-bold text-lg mb-2">Strategy Info</h3>
-              <pre className="bg-white dark:bg-gray-800 p-3 rounded overflow-x-auto text-sm">
-                {JSON.stringify(
-                  strategyInfo,
-                  (key, value) =>
-                    typeof value === "bigint" ? value.toString() : value,
-                  2
-                )}
-              </pre>
-            </div>
-          )}
-
-          {vaultDetails && (
-            <div className="p-6 bg-gray-50 dark:bg-gray-900/30 border border-gray-300 dark:border-gray-700 rounded-xl shadow-sm space-y-3 w-full max-w-4xl">
-              <h3 className="font-bold text-xl mb-4 text-center">
-                📊 Vault Overview
-              </h3>
-
-              {/* --- BASIC INFO --- */}
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+            {/* Status Messages */}
+            {error && (
+              <div className="mb-6 p-4 bg-muted border border-muted-foreground/20 rounded-xl flex gap-3 animate-in fade-in">
+                <AlertCircle className="w-5 h-5 text-muted-foreground flex-shrink-0 mt-0.5" />
                 <div>
-                  <strong>Total Assets:</strong>{" "}
-                  {Number(vaultDetails.totalAssets).toFixed(6)}
-                </div>
-                <div>
-                  <strong>Estimated APY:</strong>{" "}
-                  {vaultDetails.estimatedAPY
-                    ? `${vaultDetails.estimatedAPY}%`
-                    : "N/A"}
-                </div>
-                <div>
-                  <strong>Interval:</strong> {vaultDetails.interval?.toString()}{" "}
-                  sec
-                </div>
-                <div>
-                  <strong>Performance Fee:</strong>{" "}
-                  {Number(vaultDetails.perfFee) / 100}%
-                </div>
-                <div>
-                  <strong>Withdraw Fee:</strong>{" "}
-                  {Number(vaultDetails.withdrawFee) / 100}%
-                </div>
-                <div>
-                  <strong>Fee Recipient:</strong> {vaultDetails.feeRecipient}
-                </div>
-                <div>
-                  <strong>Last Rebalance:</strong>{" "}
-                  {new Date(
-                    Number(vaultDetails.lastReb) * 1000
-                  ).toLocaleString()}
-                </div>
-                <div>
-                  <strong>Total Deposited:</strong>{" "}
-                  {(Number(vaultDetails.totalDep) / 1e18).toFixed(2)} USDT
-                </div>
-                <div>
-                  <strong>Total Withdrawn:</strong>{" "}
-                  {(Number(vaultDetails.totalWdr) / 1e18).toFixed(2)} USDT
+                  <p className="font-semibold text-foreground">Error</p>
+                  <p className="text-sm text-muted-foreground">{error}</p>
                 </div>
               </div>
+            )}
 
-              {/* --- VAULT STATS --- */}
-              <div>
-                <h4 className="font-semibold mb-2 mt-4">Vault Stats:</h4>
-                <ul className="list-disc list-inside text-xs md:text-sm space-y-1">
-                  {vaultDetails.vaultStats?.map((v: any, i: number) => (
-                    <li key={i}>{v.toString()}</li>
-                  ))}
-                </ul>
+            {success && (
+              <div className="mb-6 p-4 bg-muted border border-muted-foreground/20 rounded-xl flex gap-3 animate-in fade-in">
+                <CheckCircle className="w-5 h-5 text-muted-foreground flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-foreground">Success</p>
+                  <p className="text-sm text-muted-foreground">{success}</p>
+                  {hash && (
+                    <p className="text-xs text-muted-foreground mt-2 break-all">
+                      Tx: {hash}
+                    </p>
+                  )}
+                </div>
               </div>
+            )}
 
-              {/* --- STRATEGY BALANCES --- */}
-              <div>
-                <h4 className="font-semibold mb-2 mt-4">Strategy Balances:</h4>
-                {vaultDetails.strategyBalances && (
-                  <div className="space-y-2 text-xs md:text-sm">
-                    {vaultDetails.strategyBalances[0].map(
-                      (addr: string, i: number) => (
-                        <div
-                          key={addr}
-                          className="flex justify-between border-b border-gray-200 dark:border-gray-700 pb-1"
-                        >
-                          <span>{addr}</span>
-                          <span>
-                            {(
-                              Number(vaultDetails.strategyBalances[1][i]) / 1e18
-                            ).toFixed(6)}{" "}
-                            USDT
-                          </span>
-                        </div>
-                      )
-                    )}
+            {/* Rebalance Section */}
+            <div className="mb-12 inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-gradient-to-br from-primary/5 to-primary/0 relative overflow-hidden rounded-2xl border border-primary/20 shadow-lg shadow-zinc-950/15 ring-1 p-8">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                <div>
+                  <div className="flex items-center gap-3 mb-3">
+                    <RotateCw className="w-6 h-6 text-primary" />
+                    <h2 className="text-2xl font-bold">Rebalance Vault</h2>
                   </div>
-                )}
-              </div>
-
-              {/* --- STRATEGY APYs --- */}
-              <div>
-                <h4 className="font-semibold mb-2 mt-4">Strategy APYs:</h4>
-                {vaultDetails.strategyAPYs && (
-                  <div className="space-y-2 text-xs md:text-sm">
-                    {vaultDetails.strategyAPYs[0].map(
-                      (addr: string, i: number) => (
-                        <div
-                          key={addr}
-                          className="flex justify-between border-b border-gray-200 dark:border-gray-700 pb-1"
-                        >
-                          <span>{addr}</span>
-                          <span>
-                            {vaultDetails.strategyAPYs[1][i]
-                              ? `${Number(vaultDetails.strategyAPYs[1][i]) / 100}%`
-                              : "N/A"}
-                          </span>
-                        </div>
-                      )
-                    )}
-                  </div>
-                )}
+                  <p className="text-muted-foreground">
+                    Harvest yields and rebalance assets across all strategies according to their allocations
+                  </p>
+                  {vaultSettings && (
+                    <p className="text-sm text-muted-foreground mt-3">
+                      Last rebalanced: {formatTimestamp(vaultSettings.lastRebalance)}
+                    </p>
+                  )}
+                </div>
+                <Button
+                  onClick={rebalanceVault}
+                  disabled={loading}
+                  className="bg-secondary hover:bg-secondary/80 text-secondary-foreground min-w-fit">
+                  {loading && <Loader className="w-4 h-4 mr-2 animate-spin" />}
+                  <RotateCw className="w-4 h-4 mr-2" />
+                  Rebalance Now
+                </Button>
               </div>
             </div>
-          )}
+
+            {/* Fee Configuration Cards */}
+            <div className="mb-12">
+              <h2 className="text-2xl font-bold mb-6">Fee Configuration</h2>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Performance Fee */}
+                <div className="inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-background relative overflow-hidden rounded-2xl border shadow-lg shadow-zinc-950/15 ring-1 p-6 hover:ring-primary/20 transition-all">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                      <Zap className="w-5 h-5 text-primary" />
+                    </div>
+                    <h3 className="text-lg font-bold">Performance Fee</h3>
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <label className="text-sm font-medium">Current Value</label>
+                        <span className="text-sm font-semibold text-primary">
+                          {vaultSettings ? `${(vaultSettings.performanceFee / 100).toFixed(2)}%` : "Loading..."}
+                        </span>
+                      </div>
+                      <input
+                        type="number"
+                        value={performanceFee}
+                        onChange={(e) => setPerformanceFee(e.target.value)}
+                        placeholder="1000"
+                        className="w-full px-4 py-2 bg-muted border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                      />
+                      <p className="text-xs text-muted-foreground mt-2">
+                        In basis points (100 = 1%). Max: 2000 (20%)
+                      </p>
+                    </div>
+                    <Button
+                      onClick={setPerformanceFeeFunc}
+                      disabled={loading}
+                      className="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground">
+                      {loading && <Loader className="w-4 h-4 mr-2 animate-spin" />}
+                      Update Performance Fee
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Withdrawal Fee */}
+                <div className="inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-background relative overflow-hidden rounded-2xl border shadow-lg shadow-zinc-950/15 ring-1 p-6 hover:ring-primary/20 transition-all">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                      <Zap className="w-5 h-5 text-primary" />
+                    </div>
+                    <h3 className="text-lg font-bold">Withdrawal Fee</h3>
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <label className="text-sm font-medium">Current Value</label>
+                        <span className="text-sm font-semibold text-primary">
+                          {vaultSettings ? `${(vaultSettings.withdrawalFee / 100).toFixed(2)}%` : "Loading..."}
+                        </span>
+                      </div>
+                      <input
+                        type="number"
+                        value={withdrawalFee}
+                        onChange={(e) => setWithdrawalFee(e.target.value)}
+                        placeholder="50"
+                        className="w-full px-4 py-2 bg-muted border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                      />
+                      <p className="text-xs text-muted-foreground mt-2">
+                        In basis points (100 = 1%). Max: 500 (5%)
+                      </p>
+                    </div>
+                    <Button
+                      onClick={setWithdrawalFeeFunc}
+                      disabled={loading}
+                      className="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground">
+                      {loading && <Loader className="w-4 h-4 mr-2 animate-spin" />}
+                      Update Withdrawal Fee
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Liquidity Buffer */}
+                <div className="inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-background relative overflow-hidden rounded-2xl border shadow-lg shadow-zinc-950/15 ring-1 p-6 hover:ring-primary/20 transition-all">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                      <Zap className="w-5 h-5 text-primary" />
+                    </div>
+                    <h3 className="text-lg font-bold">Liquidity Buffer</h3>
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <label className="text-sm font-medium">Current Value</label>
+                        <span className="text-sm font-semibold text-primary">
+                          {vaultSettings ? `${(vaultSettings.liquidityBufferBps / 100).toFixed(2)}%` : "Loading..."}
+                        </span>
+                      </div>
+                      <input
+                        type="number"
+                        value={liquidityBuffer}
+                        onChange={(e) => setLiquidityBuffer(e.target.value)}
+                        placeholder="500"
+                        className="w-full px-4 py-2 bg-muted border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                      />
+                      <p className="text-xs text-muted-foreground mt-2">
+                        In basis points (100 = 1%). Max: 2000 (20%)
+                      </p>
+                    </div>
+                    <Button
+                      onClick={setLiquidityBufferBpsFunc}
+                      disabled={loading}
+                      className="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground">
+                      {loading && <Loader className="w-4 h-4 mr-2 animate-spin" />}
+                      Update Liquidity Buffer
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Fee Recipient */}
+                <div className="inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-background relative overflow-hidden rounded-2xl border shadow-lg shadow-zinc-950/15 ring-1 p-6 hover:ring-primary/20 transition-all">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                      <Zap className="w-5 h-5 text-primary" />
+                    </div>
+                    <h3 className="text-lg font-bold">Fee Recipient</h3>
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex justify-between items-center mb-2">
+                        <label className="text-sm font-medium">Current Address</label>
+                        <span className="text-xs font-mono text-primary">
+                          {vaultSettings ? vaultSettings.feeRecipient.slice(0, 6) + "..." : "Loading..."}
+                        </span>
+                      </div>
+                      <input
+                        type="text"
+                        value={feeRecipient}
+                        onChange={(e) => setFeeRecipient(e.target.value)}
+                        placeholder="0x..."
+                        className="w-full px-4 py-2 bg-muted border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition-all text-sm font-mono"
+                      />
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Enter complete wallet address
+                      </p>
+                    </div>
+                    <Button
+                      onClick={setFeeRecipientFunc}
+                      disabled={loading || !feeRecipient}
+                      className="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground">
+                      {loading && <Loader className="w-4 h-4 mr-2 animate-spin" />}
+                      Update Fee Recipient
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Vault Statistics */}
+            {vaultSettings && (
+              <div className="mb-12">
+                <h2 className="text-2xl font-bold mb-6">Vault Statistics</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-gradient-to-br from-primary/5 to-primary/0 relative overflow-hidden rounded-2xl border border-primary/20 shadow-lg shadow-zinc-950/15 ring-1 p-6">
+                    <p className="text-sm text-muted-foreground mb-2">Status</p>
+                    <p className={`text-2xl font-bold ${vaultSettings.isPaused ? "text-muted-foreground" : "text-primary"}`}>
+                      {vaultSettings.isPaused ? "🔴 Paused" : "🟢 Active"}
+                    </p>
+                  </div>
+                  <div className="inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-gradient-to-br from-primary/5 to-primary/0 relative overflow-hidden rounded-2xl border border-primary/20 shadow-lg shadow-zinc-950/15 ring-1 p-6">
+                    <p className="text-sm text-muted-foreground mb-2">Total Deposited</p>
+                    <p className="text-2xl font-bold text-primary">${(vaultSettings.totalDeposited / 1e18).toFixed(2)}</p>
+                  </div>
+                  <div className="inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-gradient-to-br from-primary/5 to-primary/0 relative overflow-hidden rounded-2xl border border-primary/20 shadow-lg shadow-zinc-950/15 ring-1 p-6">
+                    <p className="text-sm text-muted-foreground mb-2">Total Withdrawn</p>
+                    <p className="text-2xl font-bold text-primary">${(vaultSettings.totalWithdrawn / 1e18).toFixed(2)}</p>
+                  </div>
+                  <div className="inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-gradient-to-br from-primary/5 to-primary/0 relative overflow-hidden rounded-2xl border border-primary/20 shadow-lg shadow-zinc-950/15 ring-1 p-6">
+                    <p className="text-sm text-muted-foreground mb-2">Last Rebalance</p>
+                    <p className="text-sm font-bold text-primary break-all">{formatTimestamp(vaultSettings.lastRebalance)}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Emergency Actions */}
+            <div className="mb-12 inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-gradient-to-br from-primary/5 to-primary/0 relative overflow-hidden rounded-2xl border border-primary/20 shadow-lg shadow-zinc-950/15 ring-1 p-8">
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold text-foreground mb-2">🚨 Emergency Actions</h2>
+                <p className="text-sm text-muted-foreground">
+                  Use these actions only in critical situations. They may have irreversible effects.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Button
+                  onClick={pauseVault}
+                  disabled={loading || vaultSettings?.isPaused}
+                  className="bg-secondary hover:bg-secondary/80 text-secondary-foreground">
+                  {loading && <Loader className="w-4 h-4 mr-2 animate-spin" />}
+                  Pause Vault
+                </Button>
+                <Button
+                  onClick={unpauseVault}
+                  disabled={loading || !vaultSettings?.isPaused}
+                  className="bg-secondary hover:bg-secondary/80 text-secondary-foreground">
+                  {loading && <Loader className="w-4 h-4 mr-2 animate-spin" />}
+                  Unpause Vault
+                </Button>
+                <Button
+                  onClick={emergencyWithdraw}
+                  disabled={loading}
+                  className="bg-secondary hover:bg-secondary/80 text-secondary-foreground">
+                  {loading && <Loader className="w-4 h-4 mr-2 animate-spin" />}
+                  Emergency Withdraw
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
     </DefaultLayout>
