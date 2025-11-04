@@ -1,99 +1,471 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, Activity, DollarSign, Percent, Calendar, BarChart3, PieChart, Lock, Zap, Info, ChevronRight, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { RefreshCw, Gauge, Landmark } from 'lucide-react';
+import { readContract, waitForTransactionReceipt } from '@wagmi/core';
+import { config } from "@/config/config";
+import { formatUnits, parseUnits } from 'viem';
+import yieldVaultAbi from '@/abis/YieldVaultAbi.json';
+import lendingStrategyAbi from '@/abis/LendingStrategyAbi.json';
+import liquidityStrategyAbi from '@/abis/LiquidityStrategyAbi.json';
+import stakingStrategyAbi from '@/abis/StakingStrategyAbi.json';
+
+
 import { Button } from '@/components/ui/button';
 import DefaultLayout from '@/layouts/default';
+import { totalSupply } from 'thirdweb/extensions/erc20';
+import { parse } from 'path';
 
 export default function PoolsPage() {
+
+    const YIELD_VAULT_ADDRESS = import.meta.env.VITE_YIELD_VAULT_ADDRESS as `0x${string}`;
+    const LENDING_VAULT_ADDRESS = import.meta.env.VITE_LENDING_STRATEGY_ADDRESS as `0x${string}`;
+    const LIQUIDITY_VAULT_ADDRESS = import.meta.env.VITE_LIQUIDITY_STRATEGY_ADDRESS as `0x${string}`;
+    const STAKING_VAULT_ADDRESS = import.meta.env.VITE_STAKING_STRATEGY_ADDRESS as `0x${string}`;
+
+
     const [isDark, setIsDark] = useState(true);
     const [selectedPeriod, setSelectedPeriod] = useState('year');
+    const [totalTVL, setTotalTVL] = useState<string>("0.00");
+    const [totalAPY, setTotalAPY] = useState<string>("0.00");
+    
+    const [lendingTotalAssets, setLendingTotalAssets] = useState<string>("0.00");
+    const [liquidityTotalAssets, setLiquidityTotalAssets] = useState<string>("0.00");
+    const [stakingTotalAssets, setStakingTotalAssets] = useState<string>("0.00");
+    
+    const [isLoading, setIsLoading] = useState(false);
+    
+    const [lendingTotalHarvested, setLendingTotalHarvested] = useState<string>("0.00");
+    const [liquidityTotalHarvested, setLiquidityTotalHarvested] = useState<string>("0.00");
+    const [stakingTotalHarvested, setStakingTotalHarvested] = useState<string>("0.00");
+    
+    const [lendingTotalWithdrawals, setLendingTotalWithdrawals] = useState<string>("0.00");
+    const [liquidityTotalWithdrawals, setLiquidityTotalWithdrawals] = useState<string>("0.00");
+    const [stakingTotalWithdrawals, setStakingTotalWithdrawals] = useState<string>("0.00");
 
-    const pools = [
+    const [lendingTotalDeposited, setLendingTotalDeposited] = useState<string>("0.00");
+    const [liquidityTotalDeposited, setLiquidityTotalDeposited] = useState<string>("0.00");
+    const [stakingTotalDeposited, setStakingTotalDeposited] = useState<string>("0.00");
+
+    const [lendingBaseAPY, setLendingBaseAPY] = useState<string>("0.00");
+    const [liquidityBaseAPY, setLiquidityBaseAPY] = useState<string>("0.00");
+    const [stakingBaseAPY, setStakingBaseAPY] = useState<string>("0.00");
+
+    const [lendingEstimatedAPY, setLendingEstimatedAPY] = useState<string>("0.00");
+    const [liquidityEstimatedAPY, setLiquidityEstimatedAPY] = useState<string>("0.00");
+    const [stakingEstimatedAPY, setStakingEstimatedAPY] = useState<string>("0.00");
+
+    // const [lendingAPY, setLendingAPY] = useState<string>("0.00");
+    // const [liquidityAPY, setLiquidityAPY] = useState<string>("0.00");
+    // const [stakingAPY, setStakingAPY] = useState<string>("0.00");
+
+    const [lendingAccumulatedYield, setLendingAccumulatedYield] = useState<string>("0.00");
+    const [liquidityAccumulatedYield, setLiquidityAccumulatedYield] = useState<string>("0.00");
+    const [stakingAccumulatedYield, setStakingAccumulatedYield] = useState<string>("0.00");
+
+    // const [lendingRawFunds, setLendingRawFunds] = useState<string>("0.00");
+    // const [liquidityRawFunds, setLiquidityRawFunds] = useState<string>("0.00");
+    // const [stakingRawFunds, setStakingRawFunds] = useState<string>("0.00");
+
+    const [lendingBalance, setLendingBalance] = useState<string>("0.00");
+    const [liquidityBalance, setLiquidityBalance] = useState<string>("0.00");
+    const [stakingBalance, setStakingBalance] = useState<string>("0.00");
+
+    const [lendingTotalSupply, setLendingTotalSupply] = useState<string>("0.00");
+    const [liquidityTotalSupply, setLiquidityTotalSupply] = useState<string>("0.00");
+    const [stakingTotalSupply, setStakingTotalSupply] = useState<string>("0.00");
+
+    useEffect(() => {
+      let mounted = true;
+
+      const vaultTVL = async () => {
+        try {
+          const vaultTVL = await readContract(config, {
+            address: YIELD_VAULT_ADDRESS,
+            abi: yieldVaultAbi,
+            functionName: 'totalAssets',
+            args: [],
+          }) as bigint;
+          if (mounted) {
+            setTotalTVL(formatUnits(await vaultTVL, 18));
+          }
+        } catch (error) {
+          console.error("Error fetching vault data:", error);
+        }
+      }
+
+      const vaultAPY = async () => { 
+        try {
+          const vaultApy = await readContract(config, {
+            address: YIELD_VAULT_ADDRESS,
+            abi: yieldVaultAbi,
+            functionName: 'totalSupply',
+            args: [],
+          }) as bigint;
+          if (mounted) {
+            setTotalAPY(formatUnits(await vaultApy, 18));
+          }
+        } catch (error) {
+          console.error("Error fetching vault APY:", error);
+        }
+      }
+
+      
+      const accumulateYield = async() => {
+        try {
+          const lendingYield = await readContract(config, {
+            address: LENDING_VAULT_ADDRESS,
+            abi: lendingStrategyAbi,
+            functionName: 'accumulatedYield',
+            args: [],
+          }) as bigint;
+          if (mounted) {
+            setLendingAccumulatedYield(formatUnits(await lendingYield, 18));
+          }
+
+          const liquidityYield = await readContract(config, {
+            address: LIQUIDITY_VAULT_ADDRESS,
+            abi: liquidityStrategyAbi,
+            functionName: 'accumulatedYield',
+            args: [],
+          }) as bigint;
+          if (mounted) {
+            setLiquidityAccumulatedYield(formatUnits(await liquidityYield, 18));
+          }
+
+          const stakingYield = await readContract(config, {
+            address: STAKING_VAULT_ADDRESS,
+            abi: stakingStrategyAbi,
+            functionName: 'accumulatedYield',
+            args: [],
+          }) as bigint;
+          if (mounted) {
+            setStakingAccumulatedYield(formatUnits(await stakingYield, 18));
+          }
+
+        } catch (error) {
+          console.error("Error accumulating yield:", error);
+        }
+      }
+
+      const baseAPY = async () => {
+        try {
+          const lendingApy = await readContract(config, {
+            address: LENDING_VAULT_ADDRESS,
+            abi: lendingStrategyAbi,
+            functionName: 'baseAPY',
+            args: [],
+          }) as bigint;
+          if (mounted) {
+            setLendingBaseAPY(formatUnits(await lendingApy, 2));
+          }
+          const liquidityApy = await readContract(config, {
+            address: LIQUIDITY_VAULT_ADDRESS,
+            abi: liquidityStrategyAbi,
+            functionName: 'baseAPY',
+            args: [],
+          }) as bigint;
+          if (mounted) {
+            setLiquidityBaseAPY(formatUnits(await liquidityApy, 2));
+          }
+          const stakingApy = await readContract(config, {
+            address: STAKING_VAULT_ADDRESS,
+            abi: stakingStrategyAbi,
+            functionName: 'baseAPY',
+            args: [],
+          }) as bigint;
+          if (mounted) {
+            setStakingBaseAPY(formatUnits(await stakingApy, 2));
+          }
+
+        } catch (error) {
+          console.error("Error fetching base APY:", error);
+        }
+      }
+
+      const totalAssets = async () => {
+        try {
+          const lendingAssets = await readContract(config, {
+            address: LENDING_VAULT_ADDRESS,
+            abi: lendingStrategyAbi,
+            functionName: 'totalAssets',
+            args: [],
+          }) as bigint;
+          if (mounted) {
+            setLendingTotalAssets(formatUnits(lendingAssets, 18));
+          }
+        } catch (error) {
+          console.warn("Lending totalAssets not available, using fallback");
+        }
+
+        try {
+          const liquidityAssets = await readContract(config, {
+            address: LIQUIDITY_VAULT_ADDRESS,
+            abi: liquidityStrategyAbi,
+            functionName: 'totalAssets',
+            args: [],
+          }) as bigint;
+          if (mounted) {
+            setLiquidityTotalAssets(formatUnits(liquidityAssets, 18));
+          }
+        } catch (error) {
+          console.warn("Liquidity totalAssets not available, using fallback");
+        }
+
+        try {
+          const stakingAssets = await readContract(config, {
+            address: STAKING_VAULT_ADDRESS,
+            abi: stakingStrategyAbi,
+            functionName: 'totalAssets',
+            args: [],
+          }) as bigint;
+          if (mounted) {
+            setStakingTotalAssets(formatUnits(stakingAssets, 18));
+          }
+        } catch (error) {
+          console.warn("Staking totalAssets not available, using fallback");
+        }
+      }
+
+      const totalHarvested = async () => {
+        try {
+          const lendingHarvested = await readContract(config, {
+            address: LENDING_VAULT_ADDRESS,
+            abi: lendingStrategyAbi,
+            functionName: 'totalHarvested',
+            args: [],
+          }) as bigint;
+          if (mounted) {
+            setLendingTotalHarvested(formatUnits(await lendingHarvested, 18));
+          }
+
+          const liquidityHarvested = await readContract(config, {
+            address: LIQUIDITY_VAULT_ADDRESS,
+            abi: liquidityStrategyAbi,
+            functionName: 'totalHarvested',
+            args: [],
+          }) as bigint;
+          if (mounted) {
+            setLiquidityTotalHarvested(formatUnits(await liquidityHarvested, 18));
+          }
+          const stakingHarvested = await readContract(config, {
+            address: STAKING_VAULT_ADDRESS,
+            abi: stakingStrategyAbi,
+            functionName: 'totalHarvested',
+            args: [],
+          }) as bigint;
+          if (mounted) {
+            setStakingTotalHarvested(formatUnits(await stakingHarvested, 18));
+          }
+
+        } catch (error) {
+          console.error("Error fetching total harvested:", error);
+        }
+      }
+
+      const estimatedAPY = async () => {
+        try {
+          const lendingApy = await readContract(config, {
+            address: LENDING_VAULT_ADDRESS,
+            abi: lendingStrategyAbi,
+            functionName: 'estimatedAPY',
+            args: [],
+          }) as bigint;
+          if (mounted) {
+            setLendingEstimatedAPY(formatUnits(await lendingApy, 2));
+          }
+          const liquidityApy = await readContract(config, {
+            address: LIQUIDITY_VAULT_ADDRESS,
+            abi: liquidityStrategyAbi,
+            functionName: 'estimatedAPY',
+            args: [],
+          }) as bigint;
+          if (mounted) {
+            setLiquidityEstimatedAPY(formatUnits(await liquidityApy, 2));
+          }
+          const stakingApy = await readContract(config, {
+            address: STAKING_VAULT_ADDRESS,
+            abi: stakingStrategyAbi,
+            functionName: 'estimatedAPY',
+            args: [],
+          }) as bigint;
+          if (mounted) {
+            setStakingEstimatedAPY(formatUnits(await stakingApy, 2));
+          }
+
+        } catch (error) {
+          console.error("Error fetching estimated APY:", error);
+        }
+      }
+
+      const totalSupply = async () => {
+        try {
+          const lendingSupply = await readContract(config, {
+            address: LENDING_VAULT_ADDRESS,
+            abi: lendingStrategyAbi,
+            functionName: 'totalSupply',
+            args: [],
+          }) as bigint;
+          if (mounted) {
+            setLendingTotalSupply(formatUnits(await lendingSupply, 18));
+          }
+          const liquiditySupply = await readContract(config, {
+            address: LIQUIDITY_VAULT_ADDRESS,
+            abi: liquidityStrategyAbi,
+            functionName: 'totalSupply',
+            args: [],
+          }) as bigint;
+          if (mounted) {
+            setLiquidityTotalSupply(formatUnits(await liquiditySupply, 18));
+          }
+          const stakingSupply = await readContract(config, {
+            address: STAKING_VAULT_ADDRESS,
+            abi: stakingStrategyAbi,
+            functionName: 'totalSupply',
+            args: [],
+          }) as bigint;
+          if (mounted) {
+            setStakingTotalSupply(formatUnits(await stakingSupply, 18));
+          }
+
+        } catch (error) {
+          console.error("Error fetching total supply:", error);
+        }
+      }
+
+      const balances = async () => {
+        try {
+          const lendingBal = await readContract(config, {
+            address: LENDING_VAULT_ADDRESS,
+            abi: lendingStrategyAbi,
+            functionName: 'balanceOf',
+            args: [],
+          }) as bigint;
+          if (mounted) {
+            setLendingBalance(formatUnits(await lendingBal, 18));
+          }
+          const liquidityBal = await readContract(config, {
+            address: LIQUIDITY_VAULT_ADDRESS,
+            abi: liquidityStrategyAbi,
+            functionName: 'balanceOf',
+            args: [],
+          }) as bigint;
+          if (mounted) {
+            setLiquidityBalance(formatUnits(await liquidityBal, 18));
+          }
+          const stakingBal = await readContract(config, {
+            address: STAKING_VAULT_ADDRESS,
+            abi: stakingStrategyAbi,
+            functionName: 'balanceOf',
+            args: [],
+          }) as bigint;
+          if (mounted) {
+            setStakingBalance(formatUnits(await stakingBal, 18));
+          }
+
+        } catch (error) {
+          console.error("Error fetching balances:", error);
+        }
+      }
+
+
+      vaultTVL();
+      vaultAPY();
+      accumulateYield();
+      baseAPY();
+      totalAssets();
+      totalHarvested();
+      estimatedAPY();
+      totalSupply();
+      balances();
+
+      return () => {
+        mounted = false;
+      };
+    }, [LENDING_VAULT_ADDRESS, LIQUIDITY_VAULT_ADDRESS, STAKING_VAULT_ADDRESS]);
+
+
+    // Strategy Manager Stats
+    const strategyManagerStats = {
+        contractAddress: '0x3f8c...7b2d',
+        totalStrategies: 3,
+        activeStrategies: 3,
+        totalAllocation: 10000, // 100%
+        vaultConnected: true
+    };
+
+    // Individual Strategy Stats
+    const strategies = [
         {
             id: 1,
-            name: 'Lending Pool',
-            protocol: 'Aave V3',
-            icon: '🏦',
-            allocation: 40,
-            apy: 12.8,
-            tvl: 5139025,
-            yourDeposit: 21138,
-            estimatedYearlyRevenue: 2706,
-            estimatedMonthlyRevenue: 225,
-            risk: 'Low',
-            status: 'Active',
-            lockPeriod: 'None',
-            compounding: 'Auto',
-            color: 'from-blue-500/20 to-cyan-500/20',
-            borderColor: 'border-blue-500/30',
-            performance24h: 2.3,
-            performance7d: 8.7,
-            performance30d: 15.2
+            name: 'Lending Strategy',
+            icon: 'Landmark',
+            allocation: 4000,
+            baseAPY: lendingBaseAPY ? parseFloat(lendingBaseAPY) : 0,
+            estimatedAPY: lendingEstimatedAPY ? parseFloat(lendingEstimatedAPY) : 0,
+            totalAssets: lendingTotalAssets ? parseFloat(lendingTotalAssets) : 0,
+            totalHarvested: lendingTotalHarvested ? parseFloat(lendingTotalHarvested) : 0,
+            accumulatedYield: lendingAccumulatedYield ? parseFloat(lendingAccumulatedYield) : 0,
+            active: true,
+            totalBalance: lendingBalance ? parseFloat(lendingBalance) : 0,
+            totalSupply: lendingTotalSupply ? parseFloat(lendingTotalSupply) : 0,
         },
         {
             id: 2,
-            name: 'Liquidity Pool',
-            protocol: 'Uniswap V3',
-            icon: '💧',
-            allocation: 35,
-            apy: 24.5,
-            tvl: 4496647,
-            yourDeposit: 18496,
-            estimatedYearlyRevenue: 4531,
-            estimatedMonthlyRevenue: 377,
-            risk: 'Medium',
-            status: 'Active',
-            lockPeriod: 'None',
-            compounding: 'Manual',
-            color: 'from-purple-500/20 to-pink-500/20',
-            borderColor: 'border-purple-500/30',
-            performance24h: 3.1,
-            performance7d: 12.4,
-            performance30d: 22.8
+            name: 'Liquidity Strategy',
+            icon: 'Gauge',
+            allocation: 3000,
+            baseAPY: liquidityBaseAPY ? parseFloat(liquidityBaseAPY) : 0,
+            estimatedAPY: liquidityEstimatedAPY ? parseFloat(liquidityEstimatedAPY) : 0,
+            totalAssets: liquidityTotalAssets ? parseFloat(liquidityTotalAssets) : 0,
+            totalHarvested: liquidityTotalHarvested ? parseFloat(liquidityTotalHarvested) : 0,
+            accumulatedYield: liquidityAccumulatedYield ? parseFloat(liquidityAccumulatedYield) : 0,
+            active: true,
+            totalBalance: liquidityBalance ? parseFloat(liquidityBalance) : 0,
+            totalSupply: liquidityTotalSupply ? parseFloat(liquidityTotalSupply) : 0,
         },
         {
             id: 3,
             name: 'Strategy Pool',
-            protocol: 'Yearn Finance',
-            icon: '⚡',
-            allocation: 25,
-            apy: 19.2,
-            tvl: 3211891,
-            yourDeposit: 13211,
-            estimatedYearlyRevenue: 2537,
-            estimatedMonthlyRevenue: 211,
-            risk: 'Medium',
-            status: 'Active',
-            lockPeriod: '7 Days',
-            compounding: 'Auto',
-            color: 'from-emerald-500/20 to-teal-500/20',
-            borderColor: 'border-emerald-500/30',
-            performance24h: 1.8,
-            performance7d: 10.2,
-            performance30d: 18.5
+            icon: 'Zap',
+            allocation: 3000,
+            baseAPY: stakingBaseAPY ? parseFloat(stakingBaseAPY) : 0,
+            estimatedAPY: stakingEstimatedAPY ? parseFloat(stakingEstimatedAPY) : 0,
+            totalAssets: stakingTotalAssets ? parseFloat(stakingTotalAssets) : 0,
+            totalHarvested: stakingTotalHarvested ? parseFloat(stakingTotalHarvested) : 0,
+            accumulatedYield: stakingAccumulatedYield ? parseFloat(stakingAccumulatedYield) : 0,
+            active: true,
+            totalBalance: stakingBalance ? parseFloat(stakingBalance) : 0,
+            totalSupply: stakingTotalSupply ? parseFloat(stakingTotalSupply) : 0,
         }
     ];
 
-    const vaultInsights = {
-        totalAPY: 18.42,
-        totalTVL: 12847563,
-        totalUsers: 8429,
-        avgDeposit: 1524,
-        totalRevenue24h: 4821,
-        totalRevenue7d: 33547,
-        totalRevenue30d: 143892,
-        poolDiversification: 3,
-        riskScore: 'Moderate',
-        uptimePercentage: 99.8
-    };
+    
 
-    const performanceHistory = [
-        { month: 'May', revenue: 128450 },
-        { month: 'Jun', revenue: 135820 },
-        { month: 'Jul', revenue: 142190 },
-        { month: 'Aug', revenue: 138750 },
-        { month: 'Sep', revenue: 145320 },
-        { month: 'Oct', revenue: 143892 }
-    ];
+   
+
+    // Helper: format APY values provided in basis points (e.g. 1280 -> 12.80%)
+   
+
+    // Helper: format allocation/weight values provided in basis points (e.g. 2500 -> 25.00%)
+    function formatBasisPoints(bp: number | undefined | null) {
+        if (bp === null || bp === undefined || Number.isNaN(bp)) return '-';
+        return `${(bp / 100).toFixed(2)}%`;
+    }
+
+    // Helper: render icon based on icon name
+    function renderIcon(iconName: string, size: number = 24) {
+        const iconProps = { width: size, height: size, className: 'text-primary' };
+        switch (iconName) {
+            case 'Landmark':
+                return <Landmark {...iconProps} />;
+            case 'Gauge':
+                return <Gauge {...iconProps} />;
+            case 'Zap':
+                return <Zap {...iconProps} />;
+            default:
+                return <Landmark {...iconProps} />;
+        }
+    }
 
     useEffect(() => {
         if (isDark) {
@@ -103,8 +475,6 @@ export default function PoolsPage() {
         }
     }, [isDark]);
 
-    const totalYearlyRevenue = pools.reduce((sum, pool) => sum + pool.estimatedYearlyRevenue, 0);
-    const totalMonthlyRevenue = pools.reduce((sum, pool) => sum + pool.estimatedMonthlyRevenue, 0);
 
     return (
       <DefaultLayout>
@@ -149,15 +519,15 @@ export default function PoolsPage() {
                         {/* Vault Insights Overview */}
                         <div className="mb-12">
                             <h2 className="text-2xl font-bold mb-6">Vault Performance</h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 <div className="bg-muted/50 backdrop-blur-sm border rounded-2xl p-6 hover:border-foreground/20 transition-all duration-300">
                                     <div className="flex items-center gap-3 mb-3">
                                         <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
                                             <TrendingUp className="w-5 h-5 text-primary" />
                                         </div>
-                                        <span className="text-muted-foreground text-sm">Total APY</span>
+                                        <span className="text-muted-foreground text-sm">Total Vault Shares</span>
                                     </div>
-                                    <div className="text-3xl font-bold text-cyan-500 dark:text-cyan-400">{vaultInsights.totalAPY}%</div>
+                                    <div className="text-3xl font-bold text-cyan-500 dark:text-cyan-400">{parseFloat(totalAPY).toFixed(2)}</div>
                                     <div className="text-xs text-muted-foreground mt-2">Weighted average</div>
                                 </div>
 
@@ -168,33 +538,8 @@ export default function PoolsPage() {
                                         </div>
                                         <span className="text-muted-foreground text-sm">Total TVL</span>
                                     </div>
-                                    <div className="text-3xl font-bold">${(vaultInsights.totalTVL / 1000000).toFixed(2)}M</div>
+                                    <div className="text-3xl font-bold">${(parseFloat(totalTVL)).toFixed(2)}</div>
                                     <div className="text-xs text-muted-foreground mt-2">Across all pools</div>
-                                </div>
-
-                                <div className="bg-muted/50 backdrop-blur-sm border rounded-2xl p-6 hover:border-foreground/20 transition-all duration-300">
-                                    <div className="flex items-center gap-3 mb-3">
-                                        <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                                            <Activity className="w-5 h-5 text-primary" />
-                                        </div>
-                                        <span className="text-muted-foreground text-sm">Active Users</span>
-                                    </div>
-                                    <div className="text-3xl font-bold">{vaultInsights.totalUsers.toLocaleString()}</div>
-                                    <div className="flex items-center gap-1 text-xs mt-2">
-                                        <ArrowUpRight className="w-3 h-3 text-cyan-500 dark:text-cyan-400" />
-                                        <span className="text-cyan-500 dark:text-cyan-400">+12.3% this week</span>
-                                    </div>
-                                </div>
-
-                                <div className="bg-muted/50 backdrop-blur-sm border rounded-2xl p-6 hover:border-foreground/20 transition-all duration-300">
-                                    <div className="flex items-center gap-3 mb-3">
-                                        <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                                            <BarChart3 className="w-5 h-5 text-primary" />
-                                        </div>
-                                        <span className="text-muted-foreground text-sm">Avg. Deposit</span>
-                                    </div>
-                                    <div className="text-3xl font-bold">${vaultInsights.avgDeposit.toLocaleString()}</div>
-                                    <div className="text-xs text-muted-foreground mt-2">Per user</div>
                                 </div>
 
                                 <div className="bg-muted/50 backdrop-blur-sm border rounded-2xl p-6 hover:border-foreground/20 transition-all duration-300">
@@ -204,278 +549,107 @@ export default function PoolsPage() {
                                         </div>
                                         <span className="text-muted-foreground text-sm">Uptime</span>
                                     </div>
-                                    <div className="text-3xl font-bold">{vaultInsights.uptimePercentage}%</div>
+                                    <div className="text-3xl font-bold">{99.8}%</div>
                                     <div className="text-xs text-muted-foreground mt-2">Last 30 days</div>
                                 </div>
+                                
                             </div>
                         </div>
-
-                        {/* Revenue Stats */}
-                        <div className="mb-12">
-                            <h2 className="text-2xl font-bold mb-6">Revenue Overview</h2>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div className="bg-gradient-to-br from-cyan-500/10 to-emerald-500/5 backdrop-blur-sm border border-cyan-500/20 rounded-2xl p-6">
-                                    <div className="flex items-center gap-3 mb-3">
-                                        <Calendar className="w-5 h-5 text-cyan-500 dark:text-cyan-400" />
-                                        <span className="text-muted-foreground text-sm">24 Hour Revenue</span>
-                                    </div>
-                                    <div className="text-3xl font-bold mb-2">${vaultInsights.totalRevenue24h.toLocaleString()}</div>
-                                    <div className="flex items-center gap-1 text-xs">
-                                        <ArrowUpRight className="w-3 h-3 text-cyan-500 dark:text-cyan-400" />
-                                        <span className="text-cyan-500 dark:text-cyan-400">+5.2% from yesterday</span>
-                                    </div>
-                                </div>
-
-                                <div className="bg-gradient-to-br from-blue-500/10 to-cyan-500/5 backdrop-blur-sm border border-blue-500/20 rounded-2xl p-6">
-                                    <div className="flex items-center gap-3 mb-3">
-                                        <Calendar className="w-5 h-5 text-blue-500 dark:text-blue-400" />
-                                        <span className="text-muted-foreground text-sm">7 Day Revenue</span>
-                                    </div>
-                                    <div className="text-3xl font-bold mb-2">${vaultInsights.totalRevenue7d.toLocaleString()}</div>
-                                    <div className="flex items-center gap-1 text-xs">
-                                        <ArrowUpRight className="w-3 h-3 text-cyan-500 dark:text-cyan-400" />
-                                        <span className="text-cyan-500 dark:text-cyan-400">+8.7% from last week</span>
-                                    </div>
-                                </div>
-
-                                <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/5 backdrop-blur-sm border border-purple-500/20 rounded-2xl p-6">
-                                    <div className="flex items-center gap-3 mb-3">
-                                        <Calendar className="w-5 h-5 text-purple-500 dark:text-purple-400" />
-                                        <span className="text-muted-foreground text-sm">30 Day Revenue</span>
-                                    </div>
-                                    <div className="text-3xl font-bold mb-2">${vaultInsights.totalRevenue30d.toLocaleString()}</div>
-                                    <div className="flex items-center gap-1 text-xs">
-                                        <ArrowUpRight className="w-3 h-3 text-cyan-500 dark:text-cyan-400" />
-                                        <span className="text-cyan-500 dark:text-cyan-400">+15.2% from last month</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Revenue Projections */}
-                        <div className="mb-12">
-                            <div className="flex items-center justify-between mb-6">
-                                <h2 className="text-2xl font-bold">Your Estimated Revenue</h2>
-                                <div className="flex gap-2">
-                                    <button
-                                        onClick={() => setSelectedPeriod('month')}
-                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                            selectedPeriod === 'month' ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80'
-                                        }`}>
-                                        Monthly
-                                    </button>
-                                    <button
-                                        onClick={() => setSelectedPeriod('year')}
-                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                            selectedPeriod === 'year' ? 'bg-primary text-primary-foreground' : 'bg-muted hover:bg-muted/80'
-                                        }`}>
-                                        Yearly
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
-                                <div className="inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-background relative overflow-hidden rounded-2xl border shadow-lg shadow-zinc-950/15 ring-1 p-6">
-                                    <div className="text-sm text-muted-foreground mb-2">Total {selectedPeriod === 'year' ? 'Annual' : 'Monthly'} Revenue</div>
-                                    <div className="text-4xl font-bold text-cyan-500 dark:text-cyan-400 mb-2">
-                                        ${selectedPeriod === 'year' ? totalYearlyRevenue.toLocaleString() : totalMonthlyRevenue.toLocaleString()}
-                                    </div>
-                                    <div className="text-xs text-muted-foreground">Based on current APY</div>
-                                </div>
-
-                                <div className="lg:col-span-3 inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-background relative overflow-hidden rounded-2xl border shadow-lg shadow-zinc-950/15 ring-1 p-6">
-                                    <div className="text-sm text-muted-foreground mb-4">6-Month Performance Trend</div>
-                                    <div className="flex items-end justify-between gap-2 h-32">
-                                        {performanceHistory.map((item, index) => (
-                                            <div key={index} className="flex-1 flex flex-col items-center gap-2">
-                                                <div
-                                                    className="w-full bg-gradient-to-t from-primary to-primary/50 rounded-t-lg transition-all duration-300 hover:from-primary/80"
-                                                    style={{ height: `${(item.revenue / 150000) * 100}%` }}
-                                                />
-                                                <span className="text-xs text-muted-foreground">{item.month}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Pools Detail */}
                         <div className="mb-12">
                             <div className="flex items-center justify-between mb-6">
                                 <h2 className="text-2xl font-bold">Pool Details</h2>
                                 <div className="text-sm text-muted-foreground">
-                                    {pools.length} Active Pools
+                                    {3} Active Pools
                                 </div>
                             </div>
 
-                            <div className="space-y-6">
-                                {pools.map((pool) => (
-                                    <div
-                                        key={pool.id}
-                                        className="inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-background relative overflow-hidden rounded-2xl border shadow-lg shadow-zinc-950/15 ring-1 hover:ring-2 hover:ring-primary/20 transition-all duration-300">
-                                        <div className="p-6">
-                                            {/* Pool Header */}
-                                            <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-6 gap-4">
-                                                <div className="flex items-center gap-4">
-                                                    <div className="text-5xl">{pool.icon}</div>
-                                                    <div>
-                                                        <h3 className="text-2xl font-bold mb-1">{pool.name}</h3>
-                                                        <p className="text-sm text-muted-foreground">{pool.protocol}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex gap-2">
-                                                    <span className="px-3 py-1 bg-cyan-500/10 text-cyan-500 dark:text-cyan-400 rounded-full text-xs font-semibold">
-                                                        {pool.status}
-                                                    </span>
-                                                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                                                        pool.risk === 'Low' ? 'bg-blue-500/10 text-blue-500 dark:text-blue-400' :
-                                                        'bg-orange-500/10 text-orange-500 dark:text-orange-400'
-                                                    }`}>
-                                                        {pool.risk} Risk
-                                                    </span>
-                                                </div>
-                                            </div>
-
-                                            {/* Pool Stats Grid */}
-                                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
-                                                <div className="bg-muted/50 rounded-xl p-4">
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <Percent className="w-4 h-4 text-primary" />
-                                                        <span className="text-xs text-muted-foreground">APY</span>
-                                                    </div>
-                                                    <div className="text-2xl font-bold text-cyan-500 dark:text-cyan-400">{pool.apy}%</div>
-                                                </div>
-
-                                                <div className="bg-muted/50 rounded-xl p-4">
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <PieChart className="w-4 h-4 text-primary" />
-                                                        <span className="text-xs text-muted-foreground">Allocation</span>
-                                                    </div>
-                                                    <div className="text-2xl font-bold">{pool.allocation}%</div>
-                                                </div>
-
-                                                <div className="bg-muted/50 rounded-xl p-4">
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <DollarSign className="w-4 h-4 text-primary" />
-                                                        <span className="text-xs text-muted-foreground">Pool TVL</span>
-                                                    </div>
-                                                    <div className="text-xl font-bold">${(pool.tvl / 1000000).toFixed(2)}M</div>
-                                                </div>
-
-                                                <div className="bg-muted/50 rounded-xl p-4">
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <Activity className="w-4 h-4 text-primary" />
-                                                        <span className="text-xs text-muted-foreground">Your Deposit</span>
-                                                    </div>
-                                                    <div className="text-xl font-bold">${pool.yourDeposit.toLocaleString()}</div>
-                                                </div>
-
-                                                <div className="bg-muted/50 rounded-xl p-4">
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <Lock className="w-4 h-4 text-primary" />
-                                                        <span className="text-xs text-muted-foreground">Lock Period</span>
-                                                    </div>
-                                                    <div className="text-xl font-bold">{pool.lockPeriod}</div>
-                                                </div>
-
-                                                <div className="bg-muted/50 rounded-xl p-4">
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <Zap className="w-4 h-4 text-primary" />
-                                                        <span className="text-xs text-muted-foreground">Compound</span>
-                                                    </div>
-                                                    <div className="text-xl font-bold">{pool.compounding}</div>
-                                                </div>
-                                            </div>
-
-                                            {/* Revenue Projections */}
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                                                <div className="bg-gradient-to-br from-primary/5 to-primary/0 border rounded-xl p-4">
-                                                    <div className="text-sm text-muted-foreground mb-2">Est. Monthly Revenue</div>
-                                                    <div className="text-3xl font-bold mb-1">${pool.estimatedMonthlyRevenue.toLocaleString()}</div>
-                                                    <div className="text-xs text-muted-foreground">From your ${pool.yourDeposit.toLocaleString()} deposit</div>
-                                                </div>
-
-                                                <div className="bg-gradient-to-br from-primary/5 to-primary/0 border rounded-xl p-4">
-                                                    <div className="text-sm text-muted-foreground mb-2">Est. Yearly Revenue</div>
-                                                    <div className="text-3xl font-bold mb-1">${pool.estimatedYearlyRevenue.toLocaleString()}</div>
-                                                    <div className="text-xs text-muted-foreground">Based on {pool.apy}% APY</div>
-                                                </div>
-                                            </div>
-
-                                            {/* Performance Metrics */}
-                                            <div className="bg-muted/30 rounded-xl p-4">
-                                                <div className="text-sm font-semibold mb-3">Performance</div>
-                                                <div className="grid grid-cols-3 gap-4">
-                                                    <div>
-                                                        <div className="text-xs text-muted-foreground mb-1">24 Hours</div>
-                                                        <div className="flex items-center gap-1">
-                                                            <ArrowUpRight className="w-3 h-3 text-cyan-500 dark:text-cyan-400" />
-                                                            <span className="text-sm font-semibold text-cyan-500 dark:text-cyan-400">+{pool.performance24h}%</span>
+                             <div className="space-y-6 mb-8">
+                                        {strategies.map((strategy) => (
+                                            <div key={strategy.id} className="inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-background relative overflow-hidden rounded-2xl border shadow-lg shadow-zinc-950/15 ring-1 p-6">
+                                                <div className="flex flex-col lg:flex-row lg:items-center justify-between mb-6 gap-4">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-16 h-16 bg-primary/10 rounded-lg flex items-center justify-center">
+                                                            {renderIcon(strategy.icon, 32)}
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="text-2xl font-bold mb-1">{strategy.name}</h3>
                                                         </div>
                                                     </div>
-                                                    <div>
-                                                        <div className="text-xs text-muted-foreground mb-1">7 Days</div>
-                                                        <div className="flex items-center gap-1">
-                                                            <ArrowUpRight className="w-3 h-3 text-cyan-500 dark:text-cyan-400" />
-                                                            <span className="text-sm font-semibold text-cyan-500 dark:text-cyan-400">+{pool.performance7d}%</span>
-                                                        </div>
-                                                    </div>
-                                                    <div>
-                                                        <div className="text-xs text-muted-foreground mb-1">30 Days</div>
-                                                        <div className="flex items-center gap-1">
-                                                            <ArrowUpRight className="w-3 h-3 text-cyan-500 dark:text-cyan-400" />
-                                                            <span className="text-sm font-semibold text-cyan-500 dark:text-cyan-400">+{pool.performance30d}%</span>
-                                                        </div>
+                                                    <div className="flex gap-2">
+                                                        <span className="px-3 py-1 bg-cyan-400/10 text-cyan-400 dark:text-cyan-400 rounded-full text-xs font-semibold">
+                                                            Active
+                                                        </span>
                                                     </div>
                                                 </div>
-                                            </div>
 
-                                            {/* Action Button */}
-                                            <div className="mt-6">
-                                                <Button variant="outline" className="w-full rounded-xl">
-                                                    View Pool Details
-                                                    <ChevronRight className="ml-2 w-4 h-4" />
-                                                </Button>
+                                                {/* Strategy Stats Grid */}
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                                    <div className="bg-muted/50 rounded-xl p-4">
+                                                        <div className="text-xs text-muted-foreground mb-2">Base APY</div>
+                                                        <div className="text-2xl font-bold text-indigo-500 dark:text-indigo-400">{(strategy.baseAPY).toFixed(2)}%</div>
+                                                    </div>
+
+                                                    <div className="bg-muted/50 rounded-xl p-4">
+                                                        <div className="text-xs text-muted-foreground mb-2">Estimated APY</div>
+                                                        <div className="text-2xl font-bold text-cyan-400 dark:text-cyan-400">{(strategy.estimatedAPY).toFixed(2)}%</div>
+                                                    </div>
+
+                                                    <div className="bg-muted/50 rounded-xl p-4">
+                                                        <div className="text-xs text-muted-foreground mb-2">Total Assets</div>
+                                                        <div className="text-2xl font-bold">${(strategy.totalAssets / 1000000).toFixed(2)}M</div>
+                                                    </div>
+                                                    <div className="bg-gradient-to-br from-indigo-500/5 to-indigo-500/0 border border-indigo-500/20 rounded-xl p-4">
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                            <Gauge className="w-4 h-4 text-indigo-500" />
+                                                            <span className="text-sm text-muted-foreground">Allocation Weight</span>
+                                                        </div>
+                                                        <div className="text-2xl font-bold text-indigo-500">{formatBasisPoints(strategy.allocation)}</div>
+                                                        {/* <div className="text-xs text-muted-foreground mt-1">Of total vault</div> */}
+                                                    </div>
+                                                    
+                                                </div>
+
+                                                {/* Yield Information */}
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                                    <div className="bg-gradient-to-br from-primary/5 to-primary/0 border rounded-xl p-4">
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                            <RefreshCw className="w-4 h-4 text-primary" />
+                                                            <span className="text-sm text-muted-foreground">Total Harvested</span>
+                                                        </div>
+                                                        <div className="text-2xl font-bold">${(Number(strategy.totalHarvested) || 0).toFixed(2)}</div>
+                                                        {/* <div className="text-xs text-muted-foreground mt-1">Last harvest: {strategy.lastHarvest}</div> */}
+                                                    </div>
+                                                      <div className="bg-muted/50 rounded-xl p-4">
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                            <ArrowDownRight className="w-4 h-4 text-cyan-400" />
+                                                            <span className="text-sm text-muted-foreground">Total Balance</span>
+                                                        </div>
+                                                        <div className="text-xl font-bold">${(strategy.totalBalance).toFixed(2)}</div>
+                                                    </div>
+
+                                                    <div className="bg-muted/50 rounded-xl p-4">
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                            <ArrowUpRight className="w-4 h-4 text-orange-500" />
+                                                            <span className="text-sm text-muted-foreground">Total Shares</span>
+                                                        </div>
+                                                        <div className="text-xl font-bold">${(strategy.totalSupply).toFixed(2)}</div>
+                                                    </div>
+
+                                                   
+                                                </div>
+
+                                                {/* Deposit/Withdrawal Stats */}
+                                                <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+                                                </div>
                                             </div>
-                                        </div>
+                                        ))}
                                     </div>
-                                ))}
-                            </div>
-                        </div>
+                                    
+                          </div>
 
                         {/* Additional Insights */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-background relative overflow-hidden rounded-2xl border shadow-lg shadow-zinc-950/15 ring-1 p-6">
-                                <div className="flex items-center gap-3 mb-4">
-                                    <Info className="w-5 h-5 text-primary" />
-                                    <h3 className="text-xl font-bold">Risk Distribution</h3>
-                                </div>
-                                <div className="space-y-4">
-                                    <div>
-                                        <div className="flex justify-between text-sm mb-2">
-                                            <span className="text-muted-foreground">Low Risk</span>
-                                            <span className="font-semibold">40%</span>
-                                        </div>
-                                        <div className="h-2 bg-muted rounded-full overflow-hidden">
-                                            <div className="h-full bg-blue-500 dark:bg-blue-400" style={{ width: '40%' }} />
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div className="flex justify-between text-sm mb-2">
-                                            <span className="text-muted-foreground">Medium Risk</span>
-                                            <span className="font-semibold">60%</span>
-                                        </div>
-                                        <div className="h-2 bg-muted rounded-full overflow-hidden">
-                                            <div className="h-full bg-orange-500 dark:bg-orange-400" style={{ width: '60%' }} />
-                                        </div>
-                                    </div>
-                                    <div className="pt-4 border-t">
-                                        <div className="text-sm text-muted-foreground">Overall Risk Score</div>
-                                        <div className="text-2xl font-bold text-orange-500 dark:text-orange-400 mt-1">{vaultInsights.riskScore}</div>
-                                    </div>
-                                </div>
-                            </div>
+                            
 
                             <div className="inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-background relative overflow-hidden rounded-2xl border shadow-lg shadow-zinc-950/15 ring-1 p-6">
                                 <div className="flex items-center gap-3 mb-4">
@@ -484,8 +658,8 @@ export default function PoolsPage() {
                                 </div>
                                 <div className="space-y-4">
                                     <div>
-                                        <div className="text-sm text-muted-foreground mb-2">Active Strategies</div>
-                                        <div className="text-3xl font-bold mb-1">{vaultInsights.poolDiversification}</div>
+                                        <div className="text-sm text-muted-foreground mb-2">Active Strategies: 3</div>
+                                        {/* <div className="text-3xl font-bold mb-1">{vaultInsights.poolDiversification}</div> */}
                                         <div className="text-xs text-muted-foreground">Across multiple protocols</div>
                                     </div>
                                     <div className="pt-4 border-t">
@@ -512,62 +686,7 @@ export default function PoolsPage() {
                             </div>
                         </div>
 
-                        {/* Protocol Information */}
-                        <div className="mt-12">
-                            <h2 className="text-2xl font-bold mb-6">Protocol Information</h2>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div className="bg-muted/50 backdrop-blur-sm border rounded-2xl p-6">
-                                    <div className="text-4xl mb-3">🏦</div>
-                                    <h3 className="font-bold mb-2">Aave V3</h3>
-                                    <p className="text-sm text-muted-foreground mb-4">Leading decentralized lending protocol with proven track record and high security standards.</p>
-                                    <div className="flex flex-wrap gap-2">
-                                        <span className="px-2 py-1 bg-primary/10 rounded text-xs">Audited</span>
-                                        <span className="px-2 py-1 bg-primary/10 rounded text-xs">Battle-tested</span>
-                                    </div>
-                                </div>
-
-                                <div className="bg-muted/50 backdrop-blur-sm border rounded-2xl p-6">
-                                    <div className="text-4xl mb-3">💧</div>
-                                    <h3 className="font-bold mb-2">Uniswap V3</h3>
-                                    <p className="text-sm text-muted-foreground mb-4">Top DEX with concentrated liquidity providing enhanced capital efficiency and yields.</p>
-                                    <div className="flex flex-wrap gap-2">
-                                        <span className="px-2 py-1 bg-primary/10 rounded text-xs">High Volume</span>
-                                        <span className="px-2 py-1 bg-primary/10 rounded text-xs">Liquid</span>
-                                    </div>
-                                </div>
-
-                                <div className="bg-muted/50 backdrop-blur-sm border rounded-2xl p-6">
-                                    <div className="text-4xl mb-3">⚡</div>
-                                    <h3 className="font-bold mb-2">Yearn Finance</h3>
-                                    <p className="text-sm text-muted-foreground mb-4">Advanced yield optimization strategies with automated compounding and rebalancing.</p>
-                                    <div className="flex flex-wrap gap-2">
-                                        <span className="px-2 py-1 bg-primary/10 rounded text-xs">Auto-compound</span>
-                                        <span className="px-2 py-1 bg-primary/10 rounded text-xs">Optimized</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Call to Action */}
-                        <div className="mt-12 inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-gradient-to-br from-primary/10 to-primary/5 relative overflow-hidden rounded-3xl border border-primary/20 shadow-lg shadow-zinc-950/15 ring-1 p-12 text-center">
-                            <h2 className="text-3xl md:text-4xl font-bold mb-4">Ready to Optimize Your Yields?</h2>
-                            <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
-                                Start earning optimized returns across multiple DeFi protocols with automated allocation
-                            </p>
-                            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                                <div className="bg-foreground/10 rounded-[14px] border p-0.5 inline-block">
-                                    <Button size="lg" className="rounded-xl px-8 text-base">
-                                        Deposit Now
-                                        <ArrowUpRight className="ml-2 w-4 h-4" />
-                                    </Button>
-                                </div>
-                                <Button size="lg" variant="outline" className="rounded-xl px-8">
-                                    Learn More
-                                    <ChevronRight className="ml-2 w-4 h-4" />
-                                </Button>
-                            </div>
-                        </div>
-                    </div>
+                                           </div>
                 </div>
             </section>
         </main>

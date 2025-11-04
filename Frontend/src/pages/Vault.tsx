@@ -2,38 +2,234 @@ import React, { useState, useEffect } from 'react';
 import { ArrowRight, ArrowDown, ArrowUp, Wallet, TrendingUp, Activity, DollarSign, Gift, Info, ChevronDown, Copy, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import DefaultLayout from '@/layouts/default';
+import vUSDTABI from '@/abis/vUSDTAbi.json';
+import YIELD_VAULT_ABI from '@/abis/YieldVaultAbi.json';
+import lendingStrategyAbi from '@/abis/LendingStrategyAbi.json';
+import liquidityStrategyAbi from '@/abis/LiquidityStrategyAbi.json';
+import stakingStrategyAbi from '@/abis/StakingStrategyAbi.json';
+import { useAccount } from 'wagmi';
+import { readContract, writeContract, waitForTransactionReceipt } from '@wagmi/core';
+import { config } from "@/config/config";
+import { formatUnits, parseUnits } from 'viem';
+import { parse } from 'path';
+
 
 export default function VaultPage() {
+    
+    const VUSDT_ADDRESS = import.meta.env.VITE_VUSDT_ADDRESS as `0x${string}`;
+    const YIELD_VAULT_ADDRESS = import.meta.env.VITE_YIELD_VAULT_ADDRESS as `0x${string}`;
+    const LENDING_VAULT_ADDRESS = import.meta.env.VITE_LENDING_STRATEGY_ADDRESS as `0x${string}`;
+    const LIQUIDITY_VAULT_ADDRESS = import.meta.env.VITE_LIQUIDITY_STRATEGY_ADDRESS as `0x${string}`;
+    const STAKING_VAULT_ADDRESS = import.meta.env.VITE_STAKING_STRATEGY_ADDRESS as `0x${string}`;
+
     const [isDark, setIsDark] = useState(true);
     const [activeTab, setActiveTab] = useState('deposit');
     const [amount, setAmount] = useState('');
+    const {address} = useAccount();
+    const [airdropClaimed, setAirdropClaimed] = useState(false);
+    const [walletBalance, setWalletBalance] = useState<string>("0.00");
+    const [share, setShare] = useState<string>("0.00");
+    const [TVL, setTVL] = useState<string>("0.00");
+    const [sharePrice, setSharePrice] = useState<string>("0.00");
+    const [isLoading, setIsLoading] = useState(false);
+    const [hash, setHash] = useState<string | null>(null);
+    const [totalTVL, setTotalTVL] = useState<string>("0.00");
+    const [totalSupply, setTotalSupply] = useState<string>("0.00");
+    const [lendingEstimatedAPY, setLendingEstimatedAPY] = useState<string>("0.00");
+    const [liquidityEstimatedAPY, setLiquidityEstimatedAPY] = useState<string>("0.00");
+    const [stakingEstimatedAPY, setStakingEstimatedAPY] = useState<string>("0.00");
     
-    // User vault data
-    const vaultData = {
-        totalVaultBalance: 12847563,
-        userShares: 15420,
-        userInvested: 50000,
-        userAvailableBalance: 25000,
-        userCurrentValue: 52845,
-        userProfitLoss: 2845,
-        userProfitPercent: 5.69,
-        sharePrice: 3.43,
-        totalShares: 3746890,
-        vaultAPY: 18.42,
-        walletAddress: '0x742d...4a9c'
-    };
 
-    const recentTransactions = [
-        { type: 'Deposit', amount: 10000, date: '2024-11-03', hash: '0xabc...123' },
-        { type: 'Withdraw', amount: 5000, date: '2024-11-01', hash: '0xdef...456' },
-        { type: 'Airdrop Claimed', amount: 250, date: '2024-10-28', hash: '0xghi...789' }
-    ];
+
+    // User vault data
+    // const vaultData = {
+    //     totalVaultBalance: 12847563,
+    //     userShares: 15420,
+    //     userInvested: 50000,
+    //     userAvailableBalance: 25000,
+    //     userCurrentValue: 52845,
+    //     userProfitLoss: 2845,
+    //     userProfitPercent: 5.69,
+    //     sharePrice: 3.43,
+    //     totalShares: 3746890,
+    //     vaultAPY: 18.42,
+    //     walletAddress: '0x742d...4a9c'
+    // };
 
     const poolAllocation = [
-        { name: 'Lending Pool', allocation: 40, apy: 12.8, value: 21138 },
-        { name: 'Liquidity Pool', allocation: 35, apy: 24.5, value: 18496 },
-        { name: 'Strategy Pool', allocation: 25, apy: 19.2, value: 13211 }
+        { name: 'Lending Pool', allocation: 40, apy: lendingEstimatedAPY ? parseFloat(lendingEstimatedAPY) : 0 },
+        { name: 'Liquidity Pool', allocation: 30, apy: liquidityEstimatedAPY ? parseFloat(liquidityEstimatedAPY) : 0 },
+        { name: 'Strategy Pool', allocation: 30, apy: stakingEstimatedAPY ? parseFloat(stakingEstimatedAPY) : 0 }
     ];
+
+    // Calculate weighted average APY
+    const calculateWeightedAPY = () => {
+        const totalAllocation = poolAllocation.reduce((sum, pool) => sum + pool.allocation, 0);
+        const weightedSum = poolAllocation.reduce((sum, pool) => sum + (pool.apy * pool.allocation), 0);
+        return totalAllocation > 0 ? (weightedSum / totalAllocation).toFixed(2) : "0.00";
+    };
+
+    const vaultAPY = calculateWeightedAPY();
+
+    useEffect(() => {
+    if (!address) {
+      setAirdropClaimed(false);
+      return;
+    }
+
+    let mounted = true;
+
+    const estimatedAPY = async () => {
+        try {
+          const lendingApy = await readContract(config, {
+            address: LENDING_VAULT_ADDRESS,
+            abi: lendingStrategyAbi,
+            functionName: 'estimatedAPY',
+            args: [],
+          }) as bigint;
+          if (mounted) {
+            setLendingEstimatedAPY(formatUnits(await lendingApy, 2));
+          }
+          const liquidityApy = await readContract(config, {
+            address: LIQUIDITY_VAULT_ADDRESS,
+            abi: liquidityStrategyAbi,
+            functionName: 'estimatedAPY',
+            args: [],
+          }) as bigint;
+          if (mounted) {
+            setLiquidityEstimatedAPY(formatUnits(await liquidityApy, 2));
+          }
+          const stakingApy = await readContract(config, {
+            address: STAKING_VAULT_ADDRESS,
+            abi: stakingStrategyAbi,
+            functionName: 'estimatedAPY',
+            args: [],
+          }) as bigint;
+          if (mounted) {
+            setStakingEstimatedAPY(formatUnits(await stakingApy, 2));
+          }
+
+        } catch (error) {
+          console.error("Error fetching estimated APY:", error);
+        }
+      }
+
+    const vaultTVL = async () => {
+            try {
+              const vaultTVL = await readContract(config, {
+                address: YIELD_VAULT_ADDRESS,
+                abi: YIELD_VAULT_ABI,
+                functionName: 'totalAssets',
+                args: [],
+              }) as bigint;
+              if (mounted) {
+                setTotalTVL(formatUnits(await vaultTVL, 18));
+              }
+            } catch (error) {
+              console.error("Error fetching vault data:", error);
+            }
+          }
+    
+          const vaultShares = async () => { 
+            try {
+              const vaultApy = await readContract(config, {
+                address: YIELD_VAULT_ADDRESS,
+                abi: YIELD_VAULT_ABI,
+                functionName: 'totalSupply',
+                args: [],
+              }) as bigint;
+              if (mounted) {
+                setTotalSupply(formatUnits(await vaultApy, 18));
+              }
+            } catch (error) {
+              console.error("Error fetching vault APY:", error);
+            }
+          }
+
+    const fetchBalance = async () => {
+      try {
+        console.log("Fetching balance for address:", address);
+        const balance = await readContract(config, {
+          address: VUSDT_ADDRESS,
+          abi: vUSDTABI,
+          functionName: "balanceOf",
+          args: [address],
+        }) as bigint;
+
+        const formatted = formatUnits(balance, 18);
+        if (mounted) setWalletBalance(formatted);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    const fetchVaultBalance = async () => {
+      try {
+        console.log("Fetching vault balance");
+        
+        const shares = (await readContract(config, {
+          address: YIELD_VAULT_ADDRESS,
+          abi: YIELD_VAULT_ABI,
+          functionName: "balanceOf",
+          args: [address],
+        })) as bigint;
+
+        console.log("Vault Shares:", formatUnits(shares, 18));
+        setShare(formatUnits(shares, 18));
+
+        const underlyingAssets = (await readContract(config, {
+          address: YIELD_VAULT_ADDRESS,
+          abi: YIELD_VAULT_ABI,
+          functionName: "convertToAssets",
+          args: [shares],
+        })) as bigint;
+
+        if (mounted) {
+          const tvlFormatted = formatUnits(underlyingAssets, 18);
+          setTVL(tvlFormatted);
+          console.log("Total Assets in Vault:", tvlFormatted);
+
+          // Calculate share price: TVL / shares owned
+          const sharesFormatted = formatUnits(shares, 18);
+          const sharePriceValue = parseFloat(sharesFormatted) > 0 
+            ? (parseFloat(tvlFormatted) / parseFloat(sharesFormatted)).toFixed(2)
+            : "0.00";
+          setSharePrice(sharePriceValue);
+          console.log("Share Price:", sharePriceValue);
+        }
+      } catch (err) {
+        console.error("Error fetching vault balance:", err);
+        if (mounted) setTVL("0");
+      }
+    };
+    
+    const fetchClaimed = async () => {
+      try {
+        const hasClaimed = await readContract(config, {
+          address: VUSDT_ADDRESS,
+          abi: vUSDTABI,
+          functionName: "hasClaimed",
+          args: [address],
+        }) as boolean;
+        
+        if (mounted) setAirdropClaimed(hasClaimed);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    
+    fetchBalance();
+    fetchVaultBalance();
+    fetchClaimed();
+    vaultTVL();
+    vaultShares();
+    estimatedAPY();
+
+    return () => {
+      mounted = false;
+    };
+  }, [address]);
+ 
 
     useEffect(() => {
         if (isDark) {
@@ -45,15 +241,263 @@ export default function VaultPage() {
 
     const handleMaxAmount = () => {
         if (activeTab === 'deposit') {
-            setAmount(vaultData.userAvailableBalance.toString());
+            setAmount(walletBalance);
+        } else if (activeTab === 'redeem') {
+            setAmount(share);
         } else {
-            setAmount(vaultData.userInvested.toString());
+            setAmount(share);
         }
     };
 
-    return (
-      <DefaultLayout>
-        <main className="overflow-hidden bg-background min-h-screen">
+    const handleAirdrop = async () => {
+      if (!address) return;
+      
+      try {
+        const hasClaimed = await readContract(config, {
+          address: VUSDT_ADDRESS,
+          abi: vUSDTABI,
+          functionName: "hasClaimed",
+          args: [address],
+        }) as boolean;
+
+        if (hasClaimed) {
+          setAirdropClaimed(true);
+          return;
+        }
+
+        const tx = await writeContract(config, {
+          address: VUSDT_ADDRESS,
+          abi: vUSDTABI,
+          functionName: "airdrop",
+        });
+
+        setHash(tx);
+        const receipt = await waitForTransactionReceipt(config, { hash: tx });
+
+        if (receipt.status === "success") {
+          setAirdropClaimed(true);
+        }
+      } catch (err: any) {
+        console.error(err);
+      }
+    };
+
+
+    const redeemShares = async () => {
+    if (!amount || !address) return;
+    
+    setIsLoading(true);
+    setHash("Processing redemption...");
+    
+    try {
+      const redeemValue = parseFloat(amount);
+      const availableShares = parseFloat(share || "0");
+      
+      if (redeemValue > availableShares) {
+        setHash("✗ Error: Redeem amount exceeds available shares");
+        setIsLoading(false);
+        return;
+      }
+
+      const estimatedAssets = (await readContract(config, {
+        address: YIELD_VAULT_ADDRESS,
+        abi: YIELD_VAULT_ABI,
+        functionName: "convertToAssets",
+        args: [parseUnits(amount, 18)],
+      })) as bigint;
+
+      console.log("Estimated assets:", formatUnits(estimatedAssets, 18));
+
+      const redeemTx = await writeContract(config, {
+        address: YIELD_VAULT_ADDRESS,
+        abi: YIELD_VAULT_ABI,
+        functionName: "redeem",
+        args: [parseUnits(amount, 18), address, address],
+      });
+
+      console.log("Redeem tx:", redeemTx);
+      setHash(redeemTx);
+
+      const redeemReceipt = await waitForTransactionReceipt(config, { 
+        hash: redeemTx,
+        timeout: 60000,
+      });
+
+      if (redeemReceipt.status === "success") {
+        setAmount("");
+        setHash("✓ Redemption successful!");
+        
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } else {
+        setHash("✗ Redemption failed!");
+      }
+    } catch (err: any) {
+      console.error("Redeem error:", err);
+      
+      let errorMsg = "Transaction failed";
+      
+      if (err.message?.includes("Insufficient liquidity")) {
+        errorMsg = "Vault has insufficient liquidity for this redemption. Try a smaller amount.";
+      } else if (err.message?.includes("Insufficient balance")) {
+        errorMsg = "Insufficient balance for redemption.";
+      } else if (err.message?.includes("gas")) {
+        errorMsg = "Gas estimation failed. Please try again.";
+      } else if (err.message?.includes("User rejected")) {
+        errorMsg = "Transaction rejected by user.";
+      } else {
+        errorMsg = err?.message || errorMsg;
+      }
+      
+      setHash(`✗ Error: ${errorMsg}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+
+  const withdrawFromVault = async () => {
+    if (!amount || !address) return;
+
+    setIsLoading(true);
+    setHash("Processing withdrawal...");
+
+    try {
+      const withdrawTx = await writeContract(config, {
+        address: YIELD_VAULT_ADDRESS,
+        abi: YIELD_VAULT_ABI,
+        functionName: "withdraw",
+        args: [parseUnits(amount, 18), address, address],
+        // gas: 2000000n, // Increased gas limit
+      });
+
+      console.log("Withdraw tx:", withdrawTx);
+      setHash(withdrawTx);
+
+      const withdrawReceipt = await waitForTransactionReceipt(config, {
+        hash: withdrawTx,
+        timeout: 60000,
+      });
+
+      if (withdrawReceipt.status === "success") {
+        setAmount("");
+        setHash("✓ Withdrawal successful!");
+        // setShowWithdrawModal(false);
+
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } else {
+        setHash("Withdrawal failed!");
+      }
+    } catch (err: any) {
+      console.error("Withdraw error:", err);
+      setHash(`✗ Error: ${err?.message || "Transaction failed"}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const depositToVault = async () => {
+    if (!amount || !address) return;
+    
+    setIsLoading(true);
+    setHash("Approving vUSDT...");
+    
+    try {
+      const approvalAmount = parseUnits(amount, 18);
+      
+      const approveTx = await writeContract(config, {
+        address: VUSDT_ADDRESS,
+        abi: vUSDTABI,
+        functionName: "approve",
+        args: [YIELD_VAULT_ADDRESS, approvalAmount],
+      });
+
+      console.log("Approval tx:", approveTx);
+      
+      const approvalReceipt = await waitForTransactionReceipt(config, { 
+        hash: approveTx,
+        timeout: 60000,
+      });
+
+      if (approvalReceipt.status !== "success") {
+        setHash("Approval failed!");
+        setIsLoading(false);
+        return;
+      }
+
+      console.log("Approval successful");
+      setHash("Depositing to vault...");
+
+      const depositTx = await writeContract(config, {
+        address: YIELD_VAULT_ADDRESS,
+        abi: YIELD_VAULT_ABI,
+        functionName: "deposit",
+        args: [approvalAmount, address],
+      });
+
+      console.log("Deposit tx:", depositTx);
+      setHash(depositTx);
+
+      const depositReceipt = await waitForTransactionReceipt(config, { 
+        hash: depositTx,
+        timeout: 60000,
+      });
+
+      if (depositReceipt.status === "success") {
+        setAmount("");
+        setHash("✓ Deposit successful!");
+        // setShowDepositModal(false);
+        
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } else {
+        setHash("Deposit failed!");
+      }
+    } catch (err: any) {
+      console.error("Deposit error:", err);
+      setHash(`✗ Error: ${err?.message || "Transaction failed"}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFunds = () => {
+    if (activeTab === 'deposit') {
+        depositToVault();
+    } else if (activeTab === 'withdraw') {
+        withdrawFromVault();
+    } else if (activeTab === 'redeem') {
+        redeemShares();
+    }
+  };
+
+  // Loader Component
+  const LoadingOverlay = () => (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+      <div className="bg-muted/90 border border-foreground/10 rounded-2xl p-8 shadow-2xl flex flex-col items-center gap-4">
+        {/* Animated Spinner */}
+        <div className="relative w-16 h-16">
+          <div className="absolute inset-0 rounded-full border-4 border-primary/20"></div>
+          <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-primary border-r-primary animate-spin"></div>
+        </div>
+        
+        {/* Loading Text */}
+        <div className="text-center">
+          <h3 className="text-lg font-semibold mb-1">Processing Transaction</h3>
+          <p className="text-sm text-muted-foreground">{hash || "Please wait..."}</p>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <DefaultLayout>
+      {isLoading && <LoadingOverlay />}
+      <main className="overflow-hidden bg-background min-h-screen">
             {/* Theme Toggle */}
             
 
@@ -86,18 +530,9 @@ export default function VaultPage() {
                                     <Wallet className="w-6 h-6 text-primary" />
                                 </div>
                                 <div>
-                                    <h1 className="text-4xl md:text-5xl font-bold">My Vault</h1>
+                                    <h1 className="text-4xl md:text-5xl font-bold">Vault</h1>
                                     <p className="text-sm text-muted-foreground mt-1">Manage your deposits and earnings</p>
                                 </div>
-                            </div>
-                            
-                            {/* Wallet Address */}
-                            <div className="inline-flex items-center gap-2 px-4 py-2 bg-muted rounded-lg border text-sm">
-                                <span className="text-muted-foreground">Connected:</span>
-                                <span className="font-mono">{vaultData.walletAddress}</span>
-                                <button className="hover:text-primary transition-colors">
-                                    <Copy className="w-4 h-4" />
-                                </button>
                             </div>
                         </div>
 
@@ -108,10 +543,10 @@ export default function VaultPage() {
                                     <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
                                         <DollarSign className="w-5 h-5 text-primary" />
                                     </div>
-                                    <span className="text-muted-foreground text-sm">Your Investment</span>
+                                    <span className="text-muted-foreground text-sm">Your TVL</span>
                                 </div>
-                                <div className="text-3xl font-bold">${vaultData.userInvested.toLocaleString()}</div>
-                                <div className="text-xs text-muted-foreground mt-2">Principal amount</div>
+                                <div className="text-3xl font-bold">${parseFloat(TVL).toFixed(2)}</div>
+                                <div className="text-xs text-muted-foreground mt-2">vUSDT</div>
                             </div>
 
                             <div className="bg-muted/50 backdrop-blur-sm border rounded-2xl p-6 hover:border-foreground/20 transition-all duration-300">
@@ -119,12 +554,11 @@ export default function VaultPage() {
                                     <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
                                         <TrendingUp className="w-5 h-5 text-primary" />
                                     </div>
-                                    <span className="text-muted-foreground text-sm">Current Value</span>
+                                    <span className="text-muted-foreground text-sm">INSIGHT Share Value</span>
                                 </div>
-                                <div className="text-3xl font-bold">${vaultData.userCurrentValue.toLocaleString()}</div>
+                                <div className="text-3xl font-bold text-cyan-400">${parseFloat(sharePrice).toFixed(2)}</div>
                                 <div className="flex items-center gap-1 text-xs mt-2">
-                                    <span className="text-cyan-400 dark:text-cyan-400">+${vaultData.userProfitLoss.toLocaleString()}</span>
-                                    <span className="text-cyan-400 dark:text-cyan-400">(+{vaultData.userProfitPercent}%)</span>
+                                    <span className="text-xs text-muted-foreground mt-2">vUSDT</span>
                                 </div>
                             </div>
 
@@ -133,10 +567,10 @@ export default function VaultPage() {
                                     <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
                                         <Activity className="w-5 h-5 text-primary" />
                                     </div>
-                                    <span className="text-muted-foreground text-sm">Shares Owned</span>
+                                    <span className="text-muted-foreground text-sm">Share Hold</span>
                                 </div>
-                                <div className="text-3xl font-bold">{vaultData.userShares.toLocaleString()}</div>
-                                <div className="text-xs text-muted-foreground mt-2">${vaultData.sharePrice} per share</div>
+                                <div className="text-3xl font-bold">${parseFloat(share).toFixed(2)}</div>
+                                <div className="text-xs text-muted-foreground mt-2">INSIGHT</div>
                             </div>
 
                             <div className="bg-muted/50 backdrop-blur-sm border rounded-2xl p-6 hover:border-foreground/20 transition-all duration-300">
@@ -146,8 +580,8 @@ export default function VaultPage() {
                                     </div>
                                     <span className="text-muted-foreground text-sm">Available Balance</span>
                                 </div>
-                                <div className="text-3xl font-bold">${vaultData.userAvailableBalance.toLocaleString()}</div>
-                                <div className="text-xs text-muted-foreground mt-2">In your wallet</div>
+                                <div className="text-3xl font-bold">${parseFloat(walletBalance).toFixed(2)}</div>
+                                <div className="text-xs text-muted-foreground mt-2">vUSDT</div>
                             </div>
                         </div>
 
@@ -160,7 +594,7 @@ export default function VaultPage() {
                                         <h2 className="text-2xl font-bold">Manage Vault</h2>
                                         <div className="flex items-center gap-2 px-3 py-1 bg-cyan-400/10 rounded-full text-sm text-cyan-400 dark:text-cyan-400">
                                             <TrendingUp className="w-4 h-4" />
-                                            <span>{vaultData.vaultAPY}% APY</span>
+                                            <span>{vaultAPY}% APY</span>
                                         </div>
                                     </div>
 
@@ -206,7 +640,7 @@ export default function VaultPage() {
                                                     {activeTab === 'deposit' ? 'Amount to Deposit' : activeTab === 'withdraw' ? 'Amount to Withdraw' : 'Shares to Redeem'}
                                                 </label>
                                                 <span className="text-xs text-muted-foreground">
-                                                    Available: ${activeTab === 'deposit' ? vaultData.userAvailableBalance.toLocaleString() : vaultData.userInvested.toLocaleString()}
+                                                    Available: ${activeTab === 'deposit' ? walletBalance.toLocaleString() : "Error"}
                                                 </span>
                                             </div>
                                             <div className="relative">
@@ -215,7 +649,7 @@ export default function VaultPage() {
                                                     value={amount}
                                                     onChange={(e) => setAmount(e.target.value)}
                                                     placeholder="0.00"
-                                                    className="w-full px-4 py-4 bg-muted border rounded-xl text-2xl font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
+                                                    className="w-full px-4 py-4 bg-muted border rounded-xl text-2xl font-semibold focus:outline-none focus:ring-2 focus:ring-primary [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none [&]:[-moz-appearance:textfield]"
                                                 />
                                                 <button
                                                     onClick={handleMaxAmount}
@@ -228,16 +662,18 @@ export default function VaultPage() {
                                         <div className="bg-muted/50 rounded-xl p-4 space-y-2 text-sm">
                                             <div className="flex justify-between">
                                                 <span className="text-muted-foreground">Transaction Fee</span>
-                                                <span className="font-medium">0.1%</span>
+                                                <span className="font-medium">0.0%</span>
                                             </div>
                                             <div className="flex justify-between">
                                                 <span className="text-muted-foreground">You will receive</span>
-                                                <span className="font-medium">{amount ? (parseFloat(amount) * 0.999).toFixed(2) : '0.00'} {activeTab === 'redeem' ? 'USD' : 'shares'}</span>
+                                                <span className="font-medium">{amount ? (parseFloat(amount) * 1).toFixed(2) : '0.00'} {activeTab === 'redeem' ? 'USD' : 'shares'}</span>
                                             </div>
                                         </div>
 
                                         <div className="bg-foreground/10 rounded-[14px] border p-0.5">
                                             <Button
+                                                onClick={handleFunds}
+                                                disabled={isLoading}
                                                 size="lg"
                                                 className="w-full rounded-xl text-base">
                                                 {activeTab === 'deposit' ? 'Deposit to Vault' : activeTab === 'withdraw' ? 'Withdraw from Vault' : 'Redeem Shares'}
@@ -261,7 +697,7 @@ export default function VaultPage() {
                                             <p className="text-xs text-muted-foreground">Claim your rewards</p>
                                         </div>
                                     </div>
-                                    <div className="text-3xl font-bold mb-4">$1,247</div>
+                                    <div className="text-3xl font-bold mb-4">$10,000</div>
                                     <Button size="sm" variant="outline" className="w-full rounded-lg">
                                         <Gift className="mr-2 w-4 h-4" />
                                         Claim Airdrop
@@ -277,19 +713,19 @@ export default function VaultPage() {
                                     <div className="space-y-3 text-sm">
                                         <div className="flex justify-between">
                                             <span className="text-muted-foreground">Total Vault TVL</span>
-                                            <span className="font-semibold">${(vaultData.totalVaultBalance / 1000000).toFixed(2)}M</span>
+                                            <span className="font-semibold">${(parseFloat(totalTVL)/1000000).toFixed(2)}M</span>
                                         </div>
                                         <div className="flex justify-between">
                                             <span className="text-muted-foreground">Total Shares</span>
-                                            <span className="font-semibold">{vaultData.totalShares.toLocaleString()}</span>
+                                            <span className="font-semibold">{(parseFloat(totalSupply)/1000000).toFixed(2)} INSIGHT</span>
                                         </div>
                                         <div className="flex justify-between">
-                                            <span className="text-muted-foreground">Share Price</span>
-                                            <span className="font-semibold">${vaultData.sharePrice}</span>
+                                            <span className="text-muted-foreground">Performance Fees</span>
+                                            <span className="font-semibold">${10}%</span>
                                         </div>
                                         <div className="flex justify-between">
-                                            <span className="text-muted-foreground">Your Ownership</span>
-                                            <span className="font-semibold">{((vaultData.userShares / vaultData.totalShares) * 100).toFixed(3)}%</span>
+                                            <span className="text-muted-foreground">Withdrawal Fee</span>
+                                            <span className="font-semibold">{0.5}%</span>
                                         </div>
                                     </div>
                                 </div>
@@ -311,10 +747,6 @@ export default function VaultPage() {
                                                 <span className="text-muted-foreground">APY</span>
                                                 <span className="font-semibold text-cyan-400 dark:text-cyan-400">{pool.apy}%</span>
                                             </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-muted-foreground">Your Value</span>
-                                                <span className="font-semibold">${pool.value.toLocaleString()}</span>
-                                            </div>
                                         </div>
                                     </div>
                                 ))}
@@ -322,49 +754,6 @@ export default function VaultPage() {
                         </div>
 
                         {/* Recent Transactions */}
-                        <div className="mt-8">
-                            <h2 className="text-2xl font-bold mb-6">Recent Transactions</h2>
-                            <div className="inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-background relative overflow-hidden rounded-2xl border shadow-lg shadow-zinc-950/15 ring-1">
-                                <div className="overflow-x-auto">
-                                    <table className="w-full">
-                                        <thead className="border-b">
-                                            <tr>
-                                                <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Type</th>
-                                                <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Amount</th>
-                                                <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Date</th>
-                                                <th className="text-left p-4 text-sm font-semibold text-muted-foreground">Transaction</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {recentTransactions.map((tx, index) => (
-                                                <tr key={index} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
-                                                    <td className="p-4">
-                                                        <span className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium ${
-                                                            tx.type === 'Deposit' ? 'bg-cyan-400/10 text-cyan-400 dark:text-cyan-400' :
-                                                            tx.type === 'Withdraw' ? 'bg-orange-500/10 text-orange-500 dark:text-orange-400' :
-                                                            'bg-blue-500/10 text-blue-500 dark:text-blue-400'
-                                                        }`}>
-                                                            {tx.type === 'Deposit' ? <ArrowDown className="w-3 h-3" /> :
-                                                             tx.type === 'Withdraw' ? <ArrowUp className="w-3 h-3" /> :
-                                                             <Gift className="w-3 h-3" />}
-                                                            {tx.type}
-                                                        </span>
-                                                    </td>
-                                                    <td className="p-4 font-semibold">${tx.amount.toLocaleString()}</td>
-                                                    <td className="p-4 text-sm text-muted-foreground">{tx.date}</td>
-                                                    <td className="p-4">
-                                                        <a href="#" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
-                                                            <span className="font-mono">{tx.hash}</span>
-                                                            <ExternalLink className="w-3 h-3" />
-                                                        </a>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </section>
