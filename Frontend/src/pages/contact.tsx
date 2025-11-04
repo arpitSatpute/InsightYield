@@ -13,7 +13,7 @@ export default function ContactPage() {
         message: ''
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [submitStatus, setSubmitStatus] = useState(null);
+    const [submitStatus, setSubmitStatus] = useState<string | null>(null);
 
     const socialLinks = [
         {
@@ -100,7 +100,7 @@ export default function ContactPage() {
         }
     }, [isDark]);
 
-    const handleInputChange = (e) => {
+    const handleInputChange = (e: { target: { name: any; value: any; }; }) => {
         const { name, value } = e.target;
         setFormData(prev => ({
             ...prev,
@@ -118,7 +118,7 @@ export default function ContactPage() {
 
         setTimeout(() => {
             setIsSubmitting(false);
-            setSubmitStatus('success');
+            setSubmitStatus("success");
             setFormData({
                 name: '',
                 email: '',
@@ -250,7 +250,7 @@ export default function ContactPage() {
                                                 name="message"
                                                 value={formData.message}
                                                 onChange={handleInputChange}
-                                                rows="6"
+                                                rows={6}
                                                 placeholder="Tell us more about your inquiry..."
                                                 className="w-full px-4 py-3 bg-muted border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary transition-all resize-none"
                                             />

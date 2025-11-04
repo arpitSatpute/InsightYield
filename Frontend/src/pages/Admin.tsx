@@ -18,6 +18,8 @@ import { config } from "@/config/config";
 import { Button } from "@heroui/button";
 import { formatUnits } from "viem";
 
+const ADMIN_WALLET_ADDRESS = import.meta.env.VITE_ADMIN_WALLET_ADDRESS as `0x${string}`;
+
 export default function Testing() {
   const { address } = useAccount();
   const [loading, setLoading] = useState(false);
@@ -51,6 +53,9 @@ export default function Testing() {
     .VITE_LIQUIDITY_STRATEGY_ADDRESS as `0x${string}`;
   const STAKING_STRATEGY_ADDRESS = import.meta.env
     .VITE_STAKING_STRATEGY_ADDRESS as `0x${string}`;
+
+  // Check if user is admin
+  const isAdmin = address?.toLowerCase() === ADMIN_WALLET_ADDRESS.toLowerCase();
 
   const handleAirdrop = async () => {
     if (!address) return;
@@ -611,6 +616,42 @@ export default function Testing() {
       setLoading(false);
     }
   };
+
+  if (!address) {
+    return (
+      <DefaultLayout>
+        <section className="flex flex-col items-center justify-center gap-4 py-8 md:py-10 mt-26">
+          <h1 className={title()}>Admin Page</h1>
+          <div className="p-6 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-300 dark:border-yellow-700 rounded-lg text-center">
+            <p className="text-lg font-semibold text-yellow-800 dark:text-yellow-200">
+              Please connect your wallet to access this page
+            </p>
+          </div>
+        </section>
+      </DefaultLayout>
+    );
+  }
+
+  if (!isAdmin) {
+    return (
+      <DefaultLayout>
+        <section className="flex flex-col items-center justify-center gap-4 py-8 md:py-10 mt-26">
+          <h1 className={title()}>Admin Page</h1>
+          <div className="p-6 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-lg text-center max-w-md">
+            <p className="text-lg font-semibold text-red-800 dark:text-red-200 mb-2">
+              Access Denied
+            </p>
+            <p className="text-sm text-red-700 dark:text-red-300">
+              You are not authorized to access this page. Only the admin wallet can view this page.
+            </p>
+            <p className="text-xs text-red-600 dark:text-red-400 mt-3 break-all">
+              Connected: {address}
+            </p>
+          </div>
+        </section>
+      </DefaultLayout>
+    );
+  }
 
   return (
     <DefaultLayout>

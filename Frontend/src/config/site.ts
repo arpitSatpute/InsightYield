@@ -1,6 +1,9 @@
+import { useAccount } from "wagmi";
+
 export type SiteConfig = typeof siteConfig;
 
 export const siteConfig = {
+  
   name: "Vite + HeroUI",
   description: "Make beautiful websites regardless of your design experience.",
   navItems: [
@@ -9,8 +12,8 @@ export const siteConfig = {
       href: "/",
     },
     {
-      label: "Testing",
-      href: "/testing",
+      label: "Admin",
+      href: "/admin",
     },
     {
       label: "Vault",
