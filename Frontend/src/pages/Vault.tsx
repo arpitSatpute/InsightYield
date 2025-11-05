@@ -12,6 +12,7 @@ import { readContract, writeContract, waitForTransactionReceipt } from '@wagmi/c
 import { config } from "@/config/config";
 import { formatUnits, parseUnits } from 'viem';
 import { parse } from 'path';
+import toast from 'react-hot-toast';
 
 
 export default function VaultPage() {
@@ -21,8 +22,10 @@ export default function VaultPage() {
     const LENDING_VAULT_ADDRESS = import.meta.env.VITE_LENDING_STRATEGY_ADDRESS as `0x${string}`;
     const LIQUIDITY_VAULT_ADDRESS = import.meta.env.VITE_LIQUIDITY_STRATEGY_ADDRESS as `0x${string}`;
     const STAKING_VAULT_ADDRESS = import.meta.env.VITE_STAKING_STRATEGY_ADDRESS as `0x${string}`;
-
-    const [isDark, setIsDark] = useState(true);
+    const [isDark, setIsDark] = useState(() => {
+        const stored = localStorage.getItem('vaultDarkMode');
+        return stored !== null ? JSON.parse(stored) : true;
+    });
     const [activeTab, setActiveTab] = useState('deposit');
     const [amount, setAmount] = useState('');
     const {address} = useAccount();
@@ -56,6 +59,15 @@ export default function VaultPage() {
     //     walletAddress: '0x742d...4a9c'
     // };
 
+    useEffect(() => {
+        if (isDark) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+        localStorage.setItem('vaultDarkMode', JSON.stringify(isDark));
+    }, [isDark]);
+
     const poolAllocation = [
         { name: 'Lending Pool', allocation: 40, apy: lendingEstimatedAPY ? parseFloat(lendingEstimatedAPY) : 0 },
         { name: 'Liquidity Pool', allocation: 30, apy: liquidityEstimatedAPY ? parseFloat(liquidityEstimatedAPY) : 0 },
@@ -70,6 +82,8 @@ export default function VaultPage() {
     };
 
     const vaultAPY = calculateWeightedAPY();
+
+
 
     useEffect(() => {
     if (!address) {
@@ -213,6 +227,7 @@ export default function VaultPage() {
         }) as boolean;
         
         if (mounted) setAirdropClaimed(hasClaimed);
+        toast.success("Airdrop claim status fetched");
       } catch (err) {
         console.error(err);
       }
@@ -229,15 +244,6 @@ export default function VaultPage() {
       mounted = false;
     };
   }, [address]);
- 
-
-    useEffect(() => {
-        if (isDark) {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
-    }, [isDark]);
 
     const handleMaxAmount = () => {
         if (activeTab === 'deposit') {
@@ -250,9 +256,16 @@ export default function VaultPage() {
     };
 
     const handleAirdrop = async () => {
-      if (!address) return;
+      if (!address) {
+        toast.error("Please connect your wallet");
+        return;
+      }
       
       try {
+        setIsLoading(true);
+        setHash("Checking airdrop status...");
+
+        // Check if user has already claimed
         const hasClaimed = await readContract(config, {
           address: VUSDT_ADDRESS,
           abi: vUSDTABI,
@@ -262,23 +275,69 @@ export default function VaultPage() {
 
         if (hasClaimed) {
           setAirdropClaimed(true);
+          toast.error("Airdrop already claimed for this wallet!");
+          setHash(null);
+          setIsLoading(false);
           return;
         }
 
+        setHash("Processing airdrop claim...");
+
+        // Call airdrop function - no arguments needed based on ABI
         const tx = await writeContract(config, {
           address: VUSDT_ADDRESS,
           abi: vUSDTABI,
           functionName: "airdrop",
-        });
+          args: [],
+        }) as `0x${string}`;
 
         setHash(tx);
-        const receipt = await waitForTransactionReceipt(config, { hash: tx });
+        toast.loading("Transaction pending...", { id: "airdrop-tx" });
+
+        // Wait for transaction confirmation with proper timeout
+        const receipt = await waitForTransactionReceipt(config, { 
+          hash: tx,
+          timeout: 60000,
+        });
 
         if (receipt.status === "success") {
           setAirdropClaimed(true);
+          setHash("✓ Airdrop claimed successfully!");
+          toast.success("Airdrop claimed successfully!", { id: "airdrop-tx" });
+          
+          // Refresh balance after successful claim
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
+        } else {
+          setHash("✗ Airdrop claim failed!");
+          toast.error("Airdrop claim failed! Transaction reverted.", { id: "airdrop-tx" });
         }
       } catch (err: any) {
-        console.error(err);
+        console.error("Airdrop error:", err);
+        
+        let errorMsg = "Failed to claim airdrop";
+        
+        if (err.message?.toLowerCase().includes("user rejected")) {
+          errorMsg = "Transaction rejected by user";
+        } else if (err.message?.toLowerCase().includes("already claimed")) {
+          errorMsg = "Airdrop already claimed for this address";
+        } else if (err.message?.toLowerCase().includes("insufficient")) {
+          errorMsg = "Insufficient balance";
+        } else if (err.message?.toLowerCase().includes("gas")) {
+          errorMsg = "Gas estimation failed. Try again.";
+        } else if (err.message?.toLowerCase().includes("timeout")) {
+          errorMsg = "Transaction timeout. Please check pending transactions.";
+        } else if (err.code === "CALL_EXCEPTION") {
+          errorMsg = "Contract call failed. Check if you're eligible for airdrop.";
+        } else {
+          errorMsg = err?.message || "Unknown error occurred";
+        }
+        
+        setHash(`✗ Error: ${errorMsg}`);
+        toast.error(errorMsg);
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -698,7 +757,7 @@ export default function VaultPage() {
                                         </div>
                                     </div>
                                     <div className="text-3xl font-bold mb-4">$10,000</div>
-                                    <Button size="sm" variant="outline" className="w-full rounded-lg">
+                                    <Button size="sm" variant="outline" className="w-full rounded-lg" onClick={handleAirdrop}>
                                         <Gift className="mr-2 w-4 h-4" />
                                         Claim Airdrop
                                     </Button>

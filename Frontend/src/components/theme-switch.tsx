@@ -39,7 +39,7 @@ export const ThemeSwitch: FC<ThemeSwitchProps> = ({
   if (!isMounted) return <div className="w-6 h-6" />;
 
   return (
-    <Component
+    <button
       aria-label={isSelected ? "Switch to dark mode" : "Switch to light mode"}
       {...getBaseProps({
         className: clsx(
@@ -77,6 +77,6 @@ export const ThemeSwitch: FC<ThemeSwitchProps> = ({
           <SunFilledIcon size={22} />
         )}
       </div>
-    </Component>
+    </button>
   );
 };

@@ -9,7 +9,7 @@ import Admin from "@/pages/Admin";
 import Vault from "@/pages/Vault";
 import { ThirdwebProvider } from "thirdweb/react";
 import ContactPage from "./pages/contact";
-// import { client } from "./config/ThirdWeb";
+import { Toaster } from "react-hot-toast";
 
 
 const queryClient = new QueryClient();
@@ -32,6 +32,34 @@ function App() {
       <ThirdwebProvider>
         <QueryClientProvider client={queryClient}>
           <AppRoutes />
+          <Toaster
+            position="top-center"
+            reverseOrder={false}
+            gutter={8}
+            containerClassName=""
+            containerStyle={{}}
+            toasterId="default"
+            toastOptions={{
+              // Define default options
+              className: '',
+              duration: 5000,
+              removeDelay: 1000,
+              style: {
+                background: '#363636',
+                color: '#fff',
+              },
+
+              // Default options for specific types
+              success: {
+                duration: 3000,
+                iconTheme: {
+                  primary: "green",
+                  secondary: "black",
+                },
+              },
+            }}
+          />
+
         </QueryClientProvider>
       </ThirdwebProvider>
     </WagmiProvider>
