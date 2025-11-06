@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Globe, Zap, Mail, Linkedin } from 'lucide-react';
+import { Globe, Mail, Linkedin } from 'lucide-react';
 import { DiscordIcon, GithubIcon, TwitterIcon } from './icons'; // Ensure these exports exist and are valid React components
+import InsightYieldLogo from './InsightYieldLogo';
 
 export default function Footer() {
     const [isDark, setIsDark] = useState(true);
@@ -59,11 +60,8 @@ export default function Footer() {
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 mb-12">
                         {/* Brand Section */}
                         <div className="lg:col-span-4">
-                            <div className="flex items-center gap-2 mb-4">
-                                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-lg flex items-center justify-center">
-                                    <Zap className="w-6 h-6 text-white" />
-                                </div>
-                                <span className="text-2xl font-bold">Insight Yields</span>
+                            <div className="mb-4">
+                                <InsightYieldLogo className="h-10 w-auto" />
                             </div>
                             <p className="text-muted-foreground mb-6 leading-relaxed">
                                 Automated DeFi yield aggregator optimizing returns across multiple protocols. Secure, audited, and transparent.
@@ -129,21 +127,8 @@ export default function Footer() {
                     </div>
 
                     {/* Stats Bar */}
-                    <div className="bg-muted/30 rounded-xl p-6 mb-8">
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-                            {[
-                                { label: 'Total Value Locked', value: '$12.8M+' },
-                                { label: 'Active Users', value: '8,429' },
-                                { label: 'Average APY', value: '18.42%' },
-                                { label: 'Uptime', value: '99.8%' }
-                            ].map((stat) => (
-                                <div key={stat.label}>
-                                    <div className="text-2xl font-bold mb-1">{stat.value}</div>
-                                    <div className="text-xs text-muted-foreground">{stat.label}</div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
+                    
+                    
 
                     <div className="border-t mb-8" />
 

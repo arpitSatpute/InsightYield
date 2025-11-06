@@ -757,10 +757,20 @@ export default function VaultPage() {
                                         </div>
                                     </div>
                                     <div className="text-3xl font-bold mb-4">$10,000</div>
-                                    <Button size="sm" variant="outline" className="w-full rounded-lg" onClick={handleAirdrop}>
+
+                                    {(airdropClaimed) ? (
+                                      <Button size="sm" variant="outline" className="w-full rounded-lg" disabled>
+                                        <Gift className="mr-2 w-4 h-4" />
+                                        Airdrop Claimed
+                                    </Button>
+                                     ) : (
+                                      <Button size="sm" variant="outline" className="w-full rounded-lg" onClick={handleAirdrop} >
                                         <Gift className="mr-2 w-4 h-4" />
                                         Claim Airdrop
                                     </Button>
+                                    )}
+
+                                    
                                 </div>
 
                                 {/* Vault Info Card */}
