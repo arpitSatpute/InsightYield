@@ -30,7 +30,7 @@ export default function InsightYieldLogo({ className }: { className?: string }) 
 
             <defs>
                 <linearGradient id="gradient-primary" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-                    <stop offset="0%" stopColor="#9B99FE" />
+                    <stop offset="0%" stopColor="#99d6feff" />
                     <stop offset="100%" stopColor="#2BC8B7" />
                 </linearGradient>
                 <linearGradient id="gradient-secondary" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
