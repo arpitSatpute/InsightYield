@@ -4,16 +4,14 @@ import { RefreshCw, Gauge, Landmark } from 'lucide-react';
 import { readContract, waitForTransactionReceipt } from '@wagmi/core';
 import { config } from "@/config/config";
 import { formatUnits, parseUnits } from 'viem';
-import yieldVaultAbi from '@/abis/YieldVaultAbi.json';
-import lendingStrategyAbi from '@/abis/LendingStrategyAbi.json';
-import liquidityStrategyAbi from '@/abis/LiquidityStrategyAbi.json';
-import stakingStrategyAbi from '@/abis/StakingStrategyAbi.json';
+import yieldVaultAbi from '@/abis/yieldVault.json';
+import lendingStrategyAbi from '@/abis/lendingStrategy.json';
+import liquidityStrategyAbi from '@/abis/liquidityManager.json';
+import stakingStrategyAbi from '@/abis/stakingStrategy.json';
 
 
-import { Button } from '@/components/ui/button';
 import DefaultLayout from '@/layouts/default';
-import { totalSupply } from 'thirdweb/extensions/erc20';
-import { parse } from 'path';
+
 
 export default function PoolsPage() {
 

@@ -9,7 +9,7 @@ import {
 import { useState, useEffect } from "react";
 import { Button } from "@heroui/button";
 import { formatUnits, parseUnits } from "viem";
-import YIELD_VAULT_ABI from "../abis/YieldVaultAbi.json";
+import YIELD_VAULT_ABI from "../abis/yieldVault.json";
 import { config } from "@/config/config";
 import { Lock, Settings, Zap, AlertCircle, CheckCircle, Loader, RotateCw, Shield } from "lucide-react";
 

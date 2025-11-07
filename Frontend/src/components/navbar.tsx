@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import { siteConfig } from '@/config/site'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { ConnectButton } from "thirdweb/react";
-import { client } from "@/config/thirdWeb";
+import { client } from "../config/thirdWeb";
 import { createWallet } from "thirdweb/wallets";
 import InsightYieldLogo from "./InsightYieldLogo"
 

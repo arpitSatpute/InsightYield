@@ -2,7 +2,6 @@ import { useHref, useNavigate, type NavigateOptions } from "react-router-dom";
 
 import { HeroUIProvider } from "@heroui/react";
 import { ThirdwebProvider } from "thirdweb/react";
-import { client } from "@/config/thirdWeb";
 
 declare module "@react-types/shared" {
   interface RouterConfig {
