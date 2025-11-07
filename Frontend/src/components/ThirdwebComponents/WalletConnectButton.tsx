@@ -1,7 +1,7 @@
 // components/WalletConnectButton.tsx
 import { ConnectButton } from "thirdweb/react";
 import { createWallet } from "thirdweb/wallets";
-import { client } from "../../config/thirdWeb";
+import { client } from "../../config/thirdwebConfig";
 
 // Define wallets you want to support
 const wallets = [
