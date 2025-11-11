@@ -1,0 +1,20 @@
+{
+  "name": "indightyield",
+  "version": "1.0.0",
+  "description": "",
+  "keywords": [],
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "fulfiller.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@0glabs/0g-serving-broker": "^0.5.4",
+    "@types/crypto-js": "^4.2.2",
+    "crypto-js": "^4.2.0",
+    "dotenv": "^17.2.3",
+    "ethers": "^6.15.0"
+  }
+}
