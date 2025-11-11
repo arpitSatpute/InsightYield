@@ -1,30 +1,38 @@
 [
 	{
-		"inputs": [],
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_owner",
+				"type": "address"
+			},
+			{
+				"internalType": "contract Real0GOracle",
+				"name": "_oracle",
+				"type": "address"
+			}
+		],
 		"stateMutability": "nonpayable",
 		"type": "constructor"
 	},
 	{
+		"anonymous": false,
 		"inputs": [
 			{
-				"internalType": "address",
-				"name": "owner",
-				"type": "address"
-			}
-		],
-		"name": "OwnableInvalidOwner",
-		"type": "error"
-	},
-	{
-		"inputs": [
+				"indexed": false,
+				"internalType": "string",
+				"name": "prompt",
+				"type": "string"
+			},
 			{
-				"internalType": "address",
-				"name": "account",
-				"type": "address"
+				"indexed": false,
+				"internalType": "bytes",
+				"name": "metrics",
+				"type": "bytes"
 			}
 		],
-		"name": "OwnableUnauthorizedAccount",
-		"type": "error"
+		"name": "AIRebalanceTriggered",
+		"type": "event"
 	},
 	{
 		"anonymous": false,
@@ -34,44 +42,6 @@
 				"internalType": "uint256",
 				"name": "index",
 				"type": "uint256"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "newAllocation",
-				"type": "uint256"
-			}
-		],
-		"name": "AllocationUpdated",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "previousOwner",
-				"type": "address"
-			},
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "newOwner",
-				"type": "address"
-			}
-		],
-		"name": "OwnershipTransferred",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "strategy",
-				"type": "address"
 			},
 			{
 				"indexed": false,
@@ -80,70 +50,19 @@
 				"type": "uint256"
 			}
 		],
-		"name": "StrategyAdded",
+		"name": "AllocationUpdated",
 		"type": "event"
 	},
 	{
-		"anonymous": false,
 		"inputs": [
 			{
-				"indexed": true,
 				"internalType": "address",
 				"name": "strategy",
 				"type": "address"
 			},
 			{
-				"indexed": false,
 				"internalType": "uint256",
-				"name": "index",
-				"type": "uint256"
-			}
-		],
-		"name": "StrategyRemoved",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "strategy",
-				"type": "address"
-			},
-			{
-				"indexed": false,
-				"internalType": "uint256",
-				"name": "newAllocation",
-				"type": "uint256"
-			}
-		],
-		"name": "StrategyUpdated",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": true,
-				"internalType": "address",
-				"name": "vault",
-				"type": "address"
-			}
-		],
-		"name": "VaultSet",
-		"type": "event"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "_strategy",
-				"type": "address"
-			},
-			{
-				"internalType": "uint256",
-				"name": "_allocation",
+				"name": "allocation",
 				"type": "uint256"
 			}
 		],
@@ -153,30 +72,76 @@
 		"type": "function"
 	},
 	{
-		"inputs": [],
-		"name": "getActiveStrategies",
-		"outputs": [
+		"inputs": [
+			{
+				"internalType": "string",
+				"name": "prompt",
+				"type": "string"
+			},
+			{
+				"internalType": "bytes",
+				"name": "metrics",
+				"type": "bytes"
+			}
+		],
+		"name": "aiRebalanceStrategies",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "requestId",
+				"type": "uint256"
+			},
 			{
 				"components": [
 					{
-						"internalType": "address",
-						"name": "strategy",
-						"type": "address"
-					},
-					{
 						"internalType": "uint256",
-						"name": "allocation",
+						"name": "strategyIndex",
 						"type": "uint256"
 					},
 					{
-						"internalType": "bool",
-						"name": "active",
-						"type": "bool"
+						"internalType": "uint256",
+						"name": "recommendedAllocation",
+						"type": "uint256"
 					}
 				],
-				"internalType": "struct StrategyManager.StrategyInfo[]",
-				"name": "",
+				"internalType": "struct I0GOracle.AllocationRecommendation[]",
+				"name": "allocations",
 				"type": "tuple[]"
+			},
+			{
+				"internalType": "bytes",
+				"name": "zkProof",
+				"type": "bytes"
+			}
+		],
+		"name": "fulfillAIReallocation",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "getPoolData",
+		"outputs": [
+			{
+				"internalType": "uint256[]",
+				"name": "apys",
+				"type": "uint256[]"
+			},
+			{
+				"internalType": "uint256[]",
+				"name": "risks",
+				"type": "uint256[]"
+			},
+			{
+				"internalType": "uint256[]",
+				"name": "tvls",
+				"type": "uint256[]"
 			}
 		],
 		"stateMutability": "view",
@@ -194,17 +159,17 @@
 		"outputs": [
 			{
 				"internalType": "address",
-				"name": "strategy",
+				"name": "",
 				"type": "address"
 			},
 			{
 				"internalType": "uint256",
-				"name": "allocation",
+				"name": "",
 				"type": "uint256"
 			},
 			{
 				"internalType": "bool",
-				"name": "active",
+				"name": "",
 				"type": "bool"
 			}
 		],
@@ -239,6 +204,19 @@
 	},
 	{
 		"inputs": [],
+		"name": "getTotalTVL",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
 		"name": "owner",
 		"outputs": [
 			{
@@ -253,27 +231,7 @@
 	{
 		"inputs": [
 			{
-				"internalType": "uint256",
-				"name": "index",
-				"type": "uint256"
-			}
-		],
-		"name": "removeStrategy",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "renounceOwnership",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
+				"internalType": "contract YieldVault",
 				"name": "_vault",
 				"type": "address"
 			}
@@ -313,34 +271,16 @@
 		"type": "function"
 	},
 	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "newOwner",
-				"type": "address"
-			}
-		],
-		"name": "transferOwnership",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
+		"inputs": [],
+		"name": "totalAllocation",
+		"outputs": [
 			{
 				"internalType": "uint256",
-				"name": "index",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "newAllocation",
+				"name": "",
 				"type": "uint256"
 			}
 		],
-		"name": "updateAllocation",
-		"outputs": [],
-		"stateMutability": "nonpayable",
+		"stateMutability": "view",
 		"type": "function"
 	},
 	{
@@ -348,7 +288,20 @@
 		"name": "vault",
 		"outputs": [
 			{
-				"internalType": "address",
+				"internalType": "contract YieldVault",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "zeroGOracle",
+		"outputs": [
+			{
+				"internalType": "contract Real0GOracle",
 				"name": "",
 				"type": "address"
 			}

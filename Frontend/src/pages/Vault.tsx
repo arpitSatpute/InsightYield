@@ -12,7 +12,7 @@ import { readContract, writeContract, waitForTransactionReceipt } from '@wagmi/c
 import { config } from "@/config/config";
 import { formatUnits, parseUnits } from 'viem';
 import { parse } from 'path';
-import toast from 'react-hot-toast';
+import {toast} from 'sonner';
 
 
 export default function VaultPage() {
@@ -60,13 +60,9 @@ export default function VaultPage() {
     // };
 
     useEffect(() => {
-        if (isDark) {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
-        localStorage.setItem('vaultDarkMode', JSON.stringify(isDark));
-    }, [isDark]);
+      window.scroll(0, 0);
+        
+    });
 
     const poolAllocation = [
         { name: 'Lending Pool', allocation: 40, apy: lendingEstimatedAPY ? parseFloat(lendingEstimatedAPY) : 0 },
@@ -171,6 +167,7 @@ export default function VaultPage() {
         }) as bigint;
 
         const formatted = formatUnits(balance, 18);
+        console.log("Balance: ", formatted);
         if (mounted) setWalletBalance(formatted);
       } catch (err) {
         console.error(err);
@@ -234,11 +231,11 @@ export default function VaultPage() {
     };
     
     fetchBalance();
-    fetchVaultBalance();
-    fetchClaimed();
-    vaultTVL();
-    vaultShares();
-    estimatedAPY();
+    // fetchVaultBalance();
+    // fetchClaimed();
+    // vaultTVL();
+    // vaultShares();
+    // estimatedAPY();
 
     return () => {
       mounted = false;

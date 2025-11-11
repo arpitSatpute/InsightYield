@@ -46,9 +46,11 @@ export default function AdminPage() {
 
   // Auto-load settings when component mounts
   useEffect(() => {
+
     if (isAdmin && address) {
       loadVaultSettings();
     }
+    window.scroll(0, 0);
   }, [isAdmin, address]);
 
   // ==================== Admin Functions ====================
@@ -744,6 +746,71 @@ export default function AdminPage() {
                 </Button>
               </div>
             </div>
+
+            <div className="mb-12 inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-gradient-to-br from-primary/5 to-primary/0 relative overflow-hidden rounded-2xl border border-primary/20 shadow-lg shadow-zinc-950/15 ring-1 p-8">
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold text-foreground mb-2">🚨 Emergency Actions</h2>
+                <p className="text-sm text-muted-foreground">
+                  Use these actions only in critical situations. They may have irreversible effects.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Button
+                  onClick={pauseVault}
+                  disabled={loading || vaultSettings?.isPaused}
+                  className="bg-secondary hover:bg-secondary/80 text-secondary-foreground">
+                  {loading && <Loader className="w-4 h-4 mr-2 animate-spin" />}
+                  Pause Vault
+                </Button>
+                <Button
+                  onClick={unpauseVault}
+                  disabled={loading || !vaultSettings?.isPaused}
+                  className="bg-secondary hover:bg-secondary/80 text-secondary-foreground">
+                  {loading && <Loader className="w-4 h-4 mr-2 animate-spin" />}
+                  Unpause Vault
+                </Button>
+                <Button
+                  onClick={emergencyWithdraw}
+                  disabled={loading}
+                  className="bg-secondary hover:bg-secondary/80 text-secondary-foreground">
+                  {loading && <Loader className="w-4 h-4 mr-2 animate-spin" />}
+                  Emergency Withdraw
+                </Button>
+              </div>
+            </div>
+
+            <div className="mb-12 inset-shadow-2xs ring-background dark:inset-shadow-white/20 bg-gradient-to-br from-primary/5 to-primary/0 relative overflow-hidden rounded-2xl border border-primary/20 shadow-lg shadow-zinc-950/15 ring-1 p-8">
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold text-foreground mb-2">🚨 Emergency Actions</h2>
+                <p className="text-sm text-muted-foreground">
+                  Use these actions only in critical situations. They may have irreversible effects.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Button
+                  onClick={pauseVault}
+                  disabled={loading || vaultSettings?.isPaused}
+                  className="bg-secondary hover:bg-secondary/80 text-secondary-foreground">
+                  {loading && <Loader className="w-4 h-4 mr-2 animate-spin" />}
+                  Pause Vault
+                </Button>
+                <Button
+                  onClick={unpauseVault}
+                  disabled={loading || !vaultSettings?.isPaused}
+                  className="bg-secondary hover:bg-secondary/80 text-secondary-foreground">
+                  {loading && <Loader className="w-4 h-4 mr-2 animate-spin" />}
+                  Unpause Vault
+                </Button>
+                <Button
+                  onClick={emergencyWithdraw}
+                  disabled={loading}
+                  className="bg-secondary hover:bg-secondary/80 text-secondary-foreground">
+                  {loading && <Loader className="w-4 h-4 mr-2 animate-spin" />}
+                  Emergency Withdraw
+                </Button>
+              </div>
+            </div>
+
           </div>
         </div>
       </section>

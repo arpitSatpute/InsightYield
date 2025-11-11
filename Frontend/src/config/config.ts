@@ -1,17 +1,39 @@
+// wagmi.config.ts or config.ts
 import { createConfig, http, injected } from 'wagmi'
-import { sepolia } from 'wagmi/chains'
+import { Chain } from 'wagmi/chains'
 import { metaMask, safe } from 'wagmi/connectors'
-// removed metamask import (not available in this wagmi version)
+
+
+
+const ogGalileo: Chain = {
+  id: 16602,
+  name: '0G-Galileo-Testnet',
+  nativeCurrency: {
+    decimals: 18,
+    name: '0G',
+    symbol: '0G',
+  },
+  rpcUrls: {
+    default: { http: ['https://evmrpc-testnet.0g.ai'] },
+    public: { http: ['https://evmrpc-testnet.0g.ai'] },
+  },
+  blockExplorers: {
+    default: {
+      name: '0G Explorer',
+      url: 'https://chainscan-galileo.0g.ai',
+    },
+  },
+  testnet: true,
+}
 
 export const config = createConfig({
-  chains: [sepolia],
+  chains: [ogGalileo],
   transports: {
-    [sepolia.id]: http(),
+    [ogGalileo.id]: http(),
   },
   connectors: [
+    metaMask(),
     injected(),
     safe(),
-    metaMask(),
-    
-  ],
+  ]
 })

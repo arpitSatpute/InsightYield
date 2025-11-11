@@ -73,6 +73,7 @@ export default function PoolsPage() {
     const [stakingTotalSupply, setStakingTotalSupply] = useState<string>("0.00");
 
     useEffect(() => {
+      window.scroll(0, 0);
       let mounted = true;
 
       const vaultTVL = async () => {
@@ -465,14 +466,6 @@ export default function PoolsPage() {
         }
     }
 
-    useEffect(() => {
-        if (isDark) {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
-    }, [isDark]);
-
 
     return (
       <DefaultLayout>
@@ -594,7 +587,7 @@ export default function PoolsPage() {
 
                                                     <div className="bg-muted/50 rounded-xl p-4">
                                                         <div className="text-xs text-muted-foreground mb-2">Total Assets</div>
-                                                        <div className="text-2xl font-bold">${(strategy.totalAssets / 1000000).toFixed(2)}M</div>
+                                                        <div className="text-2xl font-bold">${(strategy.totalAssets ).toFixed(2)}M</div>
                                                     </div>
                                                     <div className="bg-gradient-to-br from-indigo-500/5 to-indigo-500/0 border border-indigo-500/20 rounded-xl p-4">
                                                         <div className="flex items-center gap-2 mb-2">

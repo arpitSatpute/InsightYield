@@ -5,15 +5,15 @@ import DefaultLayout from '@/layouts/default';
 import { DiscordIcon, GithubIcon, TwitterIcon } from '@/components/icons';
 
 export default function ContactPage() {
-    const [isDark, setIsDark] = useState(true);
-    const [formData, setFormData] = useState({
-        name: '',
-        email: '',
-        subject: '',
-        message: ''
-    });
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [submitStatus, setSubmitStatus] = useState<string | null>(null);
+    // theme is handled globally by the ThemeProvider / navbar toggle
+     const [formData, setFormData] = useState({
+         name: '',
+         email: '',
+         subject: '',
+         message: ''
+     });
+     const [isSubmitting, setIsSubmitting] = useState(false);
+     const [submitStatus, setSubmitStatus] = useState<string | null>(null);
 
     const socialLinks = [
         {
@@ -93,12 +93,9 @@ export default function ContactPage() {
     ];
 
     useEffect(() => {
-        if (isDark) {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
-    }, [isDark]);
+        // keep scroll-to-top behavior on mount / route change
+        window.scroll(0, 0);
+    }, []);
 
     const handleInputChange = (e: { target: { name: any; value: any; }; }) => {
         const { name, value } = e.target;

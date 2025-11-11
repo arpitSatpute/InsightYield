@@ -9,7 +9,10 @@ import Admin from "@/pages/Admin";
 import Vault from "@/pages/Vault";
 import { ThirdwebProvider } from "thirdweb/react";
 import ContactPage from "./pages/contact";
-import { Toaster } from "react-hot-toast";
+import { Toaster } from "sonner";
+import { ThemeProvider, useTheme } from "@/context/ThemeContext"; // ensure this matches your ThemeContext export
+import ThemeSync from "./components/ThemeSync";
+import About from "./pages/about";
 
 
 const queryClient = new QueryClient();
@@ -21,49 +24,41 @@ function AppRoutes() {
       <Route element={<Admin />} path="/admin" />
       <Route element={<Pools />} path="/pools" />
       <Route element={<Vault />} path="/vault" />
+      <Route element={<About />} path="/about" />
       <Route element={<ContactPage />} path="/contact" />
     </Routes>
   );
 }
 
-function App() {
+export function App() {
   return (
     <WagmiProvider config={config}>
       <ThirdwebProvider>
         <QueryClientProvider client={queryClient}>
-          <AppRoutes />
-          <Toaster
-            position="top-center"
-            reverseOrder={false}
-            gutter={8}
-            containerClassName=""
-            containerStyle={{}}
-            toasterId="default"
-            toastOptions={{
-              // Define default options
-              className: '',
-              duration: 5000,
-              removeDelay: 1000,
-              style: {
-                background: '#363636',
-                color: '#fff',
-              },
-
-              // Default options for specific types
-              success: {
-                duration: 3000,
-                iconTheme: {
-                  primary: "green",
-                  secondary: "black",
-                },
-              },
-            }}
-          />
-
+          <ThemeProvider>
+            <ThemeSync />
+            <AppRoutes />
+            {/* read theme from provider so Toaster follows the app theme */}
+            <ThemeAwareToaster />
+          </ThemeProvider>
         </QueryClientProvider>
       </ThirdwebProvider>
     </WagmiProvider>
   );
 }
 
-export default App;
+function ThemeAwareToaster() {
+  // make hook usage resilient: if useTheme throws (no provider) fall back to localStorage / prefers-color-scheme
+  let theme = "light";
+  try {
+    const themeHook = useTheme();
+    theme = Array.isArray(themeHook) ? themeHook[0] : themeHook?.theme ?? themeHook ?? "light";
+  } catch (e) {
+    try {
+      const stored = typeof window !== "undefined" && localStorage.getItem("theme");
+      if (stored) theme = stored;
+      else if (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
+    } catch {}
+  }
+  return <Toaster position="bottom-right" theme={theme === "dark" ? "dark" : "light"} />;
+}

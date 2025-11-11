@@ -3,7 +3,7 @@ import { Link } from '@heroui/link'
 import { Menu, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { siteConfig } from '@/config/site'
-import { ThemeToggle } from '@/components/ThemeToggle'
+import  ThemeToggle  from '@/components/ThemeToggle'
 import { ConnectButton } from "thirdweb/react";
 import { client } from "../config/thirdwebConfig";
 import { createWallet } from "thirdweb/wallets";
@@ -140,15 +140,3 @@ export const Navbar = () => {
         </header>
     )
 }
-
-// // Find animations with blur filters and ensure values are >= 0
-// const animationVariants = {
-//   hidden: {
-//     opacity: 0,
-//     filter: "blur(10px)" // Ensure blur is positive
-//   },
-//   visible: {
-//     opacity: 1,
-//     filter: "blur(0px)" // Not negative values
-//   }
-// }
