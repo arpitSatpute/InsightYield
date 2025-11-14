@@ -6,19 +6,24 @@ import { writeContract, readContract } from "@wagmi/core";
 import { useAccount } from "wagmi";
 import { utils } from "ethers";
 import vusdtAbi from "@/abis/vusdt.json";
+import lendingStrategyAbi from "@/abis/lendingStrategy.json"
 import { Button } from "@heroui/button";
 import { formatUnits, parseUnits } from 'viem';
+
 
 
 export default function DocsPage() {
 
   const VUSDT_ADDRESS = import.meta.env.VITE_VUSDT_ADDRESS;
+  const LENDING_STRATEGY_ADDRESS = import.meta.env.VITE_LENDING_STRATEGY_ADDRESS;
+  
 
   const { address } = useAccount();
   const [balance, setBalance] = useState<string | null>(null);
   const [symbol, setSymbol] = useState<string>("TOKEN");
   const [decimals, setDecimals] = useState<number>(18);
   const [balLoading, setBalLoading] = useState(false);
+
 
   useEffect(() => {
     async function loadBalance() {
@@ -64,6 +69,22 @@ export default function DocsPage() {
     }
   }
 
+  const handleTotalAssets = async() => {
+    try{
+      const tx = await readContract(config, {
+        address: LENDING_STRATEGY_ADDRESS,
+        abi: lendingStrategyAbi,
+        functionName: "totalAssets",
+      }) as bigint;
+      const formatted = formatUnits(tx, 18);
+
+      console.log(formatted);
+    }
+    catch (err) {
+      console.log(err);
+    }
+  }
+
   return (
     <DefaultLayout>
       {/* Info box: show connected user balance */}
@@ -94,6 +115,7 @@ export default function DocsPage() {
         </div>
 
         <Button onPress={handleAirdrop}>Airdrop</Button>
+        <Button onPress={handleTotalAssets}>Lending Assets</Button>
       </section>
     </DefaultLayout>
   );
