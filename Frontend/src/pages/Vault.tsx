@@ -7,11 +7,11 @@ import YIELD_VAULT_ABI from '@/abis/yieldVault.json';
 import lendingStrategyAbi from '@/abis/lendingStrategy.json';
 import liquidityStrategyAbi from '@/abis/liquidityStrategy.json';
 import stakingStrategyAbi from '@/abis/stakingStrategy.json';
+import strategyManagerAbi from '@/abis/strategyManager.json';
 import { useAccount } from 'wagmi';
 import { readContract, writeContract, waitForTransactionReceipt } from '@wagmi/core';
 import { config } from "@/config/config";
 import { formatUnits, parseUnits } from 'viem';
-import { parse } from 'path';
 import {toast} from 'sonner';
 
 
@@ -22,6 +22,9 @@ export default function VaultPage() {
     const LENDING_VAULT_ADDRESS = import.meta.env.VITE_LENDING_STRATEGY_ADDRESS as `0x${string}`;
     const LIQUIDITY_VAULT_ADDRESS = import.meta.env.VITE_LIQUIDITY_STRATEGY_ADDRESS as `0x${string}`;
     const STAKING_VAULT_ADDRESS = import.meta.env.VITE_STAKING_STRATEGY_ADDRESS as `0x${string}`;
+    const STRATEGY_MANAGER_ADDRESS = import.meta.env.VITE_STRATEGY_MANAGER_ADDRESS as `0x${string}`;
+
+
     const [isDark, setIsDark] = useState(() => {
         const stored = localStorage.getItem('vaultDarkMode');
         return stored !== null ? JSON.parse(stored) : true;
@@ -38,26 +41,15 @@ export default function VaultPage() {
     const [hash, setHash] = useState<string | null>(null);
     const [totalTVL, setTotalTVL] = useState<string>("0.00");
     const [totalSupply, setTotalSupply] = useState<string>("0.00");
+
     const [lendingEstimatedAPY, setLendingEstimatedAPY] = useState<string>("0.00");
     const [liquidityEstimatedAPY, setLiquidityEstimatedAPY] = useState<string>("0.00");
     const [stakingEstimatedAPY, setStakingEstimatedAPY] = useState<string>("0.00");
-    
 
+    const [lendingAllocation, setLendingAllocation] = useState<string>("0.00");
+    const [liquidityAllocation, setLiquidityAllocation] = useState<string>("0.00");
+    const [stakingAllocation, setStakingAllocation] = useState<string>("0.00");
 
-    // User vault data
-    // const vaultData = {
-    //     totalVaultBalance: 12847563,
-    //     userShares: 15420,
-    //     userInvested: 50000,
-    //     userAvailableBalance: 25000,
-    //     userCurrentValue: 52845,
-    //     userProfitLoss: 2845,
-    //     userProfitPercent: 5.69,
-    //     sharePrice: 3.43,
-    //     totalShares: 3746890,
-    //     vaultAPY: 18.42,
-    //     walletAddress: '0x742d...4a9c'
-    // };
 
     useEffect(() => {
       window.scroll(0, 0);
@@ -65,15 +57,15 @@ export default function VaultPage() {
     });
 
     const poolAllocation = [
-        { name: 'Lending Pool', allocation: 40, apy: lendingEstimatedAPY ? parseFloat(lendingEstimatedAPY) : 0 },
-        { name: 'Liquidity Pool', allocation: 30, apy: liquidityEstimatedAPY ? parseFloat(liquidityEstimatedAPY) : 0 },
-        { name: 'Strategy Pool', allocation: 30, apy: stakingEstimatedAPY ? parseFloat(stakingEstimatedAPY) : 0 }
+        { name: 'Lending Pool', allocation: lendingAllocation, apy: lendingEstimatedAPY ? parseFloat(lendingEstimatedAPY) : 0 },
+        { name: 'Liquidity Pool', allocation: liquidityAllocation, apy: liquidityEstimatedAPY ? parseFloat(liquidityEstimatedAPY) : 0 },
+        { name: 'Strategy Pool', allocation: stakingAllocation, apy: stakingEstimatedAPY ? parseFloat(stakingEstimatedAPY) : 0 }
     ];
 
     // Calculate weighted average APY
     const calculateWeightedAPY = () => {
-        const totalAllocation = poolAllocation.reduce((sum, pool) => sum + pool.allocation, 0);
-        const weightedSum = poolAllocation.reduce((sum, pool) => sum + (pool.apy * pool.allocation), 0);
+        const totalAllocation = poolAllocation.reduce((sum, pool) => sum + Number(pool.allocation), 0);
+        const weightedSum = poolAllocation.reduce((sum, pool) => sum + (pool.apy * Number(pool.allocation)), 0);
         return totalAllocation > 0 ? (weightedSum / totalAllocation).toFixed(2) : "0.00";
     };
 
@@ -88,6 +80,42 @@ export default function VaultPage() {
     }
 
     let mounted = true;
+
+    const getAllocations = async () => {
+            try {
+              const lend = await readContract(config, {
+                address: STRATEGY_MANAGER_ADDRESS,
+                abi: strategyManagerAbi,
+                functionName: "getStrategy",
+                args: [0],
+              }) as [string, bigint, boolean];
+              console.log(lend[1]);
+              if (mounted) setLendingAllocation(formatUnits(await lend[1], 2)); 
+              
+              // allocation is index 1
+    
+              const liquidity = await readContract(config, {
+                address: STRATEGY_MANAGER_ADDRESS,
+                abi: strategyManagerAbi,
+              functionName: "getStrategy",
+                args: [1],
+              }) as [string, bigint, boolean];
+    
+              if (mounted) setLiquidityAllocation(formatUnits(await liquidity[1], 2));
+    
+              const staking = await readContract(config, {
+                address: STRATEGY_MANAGER_ADDRESS,
+                abi: strategyManagerAbi,
+                functionName: "getStrategy",
+                args: [2],
+              }) as [string, bigint, boolean];
+    
+              if (mounted) setStakingAllocation(formatUnits(await staking[1], 2));
+    
+            } catch (err) {
+              console.error("Error allocations:", err);
+            }
+          };
 
     const estimatedAPY = async () => {
         try {
@@ -231,11 +259,12 @@ export default function VaultPage() {
     };
     
     fetchBalance();
-    // fetchVaultBalance();
-    // fetchClaimed();
-    // vaultTVL();
-    // vaultShares();
-    // estimatedAPY();
+    getAllocations();
+    fetchVaultBalance();
+    fetchClaimed();
+    vaultTVL();
+    vaultShares();
+    estimatedAPY();
 
     return () => {
       mounted = false;
@@ -284,7 +313,7 @@ export default function VaultPage() {
         const tx = await writeContract(config, {
           address: VUSDT_ADDRESS,
           abi: vUSDTABI,
-          functionName: "airdrop",
+          functionName: "airDrop",
           args: [],
         }) as `0x${string}`;
 
