@@ -78,22 +78,82 @@
             }
         ],
         "name": "Paused",
-        "type": "event",
-        "inherited": true
+        "type": "event"
     },
     {
         "anonymous": false,
         "inputs": [
             {
-                "indexed": false,
+                "indexed": true,
+                "internalType": "bytes32",
+                "name": "role",
+                "type": "bytes32"
+            },
+            {
+                "indexed": true,
+                "internalType": "bytes32",
+                "name": "previousAdminRole",
+                "type": "bytes32"
+            },
+            {
+                "indexed": true,
+                "internalType": "bytes32",
+                "name": "newAdminRole",
+                "type": "bytes32"
+            }
+        ],
+        "name": "RoleAdminChanged",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "bytes32",
+                "name": "role",
+                "type": "bytes32"
+            },
+            {
+                "indexed": true,
                 "internalType": "address",
                 "name": "account",
                 "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "sender",
+                "type": "address"
             }
         ],
-        "name": "Unpaused",
-        "type": "event",
-        "inherited": true
+        "name": "RoleGranted",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "bytes32",
+                "name": "role",
+                "type": "bytes32"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "sender",
+                "type": "address"
+            }
+        ],
+        "name": "RoleRevoked",
+        "type": "event"
     },
     {
         "anonymous": false,
@@ -137,6 +197,19 @@
         "anonymous": false,
         "inputs": [
             {
+                "indexed": false,
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            }
+        ],
+        "name": "Unpaused",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
                 "indexed": true,
                 "internalType": "address",
                 "name": "vault",
@@ -145,84 +218,6 @@
         ],
         "name": "VaultSet",
         "type": "event"
-    },
-    {
-        "anonymous": false,
-        "inputs": [
-            {
-                "indexed": true,
-                "internalType": "bytes32",
-                "name": "role",
-                "type": "bytes32"
-            },
-            {
-                "indexed": true,
-                "internalType": "bytes32",
-                "name": "previousAdminRole",
-                "type": "bytes32"
-            },
-            {
-                "indexed": true,
-                "internalType": "bytes32",
-                "name": "newAdminRole",
-                "type": "bytes32"
-            }
-        ],
-        "name": "RoleAdminChanged",
-        "type": "event",
-        "inherited": true
-    },
-    {
-        "anonymous": false,
-        "inputs": [
-            {
-                "indexed": true,
-                "internalType": "bytes32",
-                "name": "role",
-                "type": "bytes32"
-            },
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "account",
-                "type": "address"
-            },
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "sender",
-                "type": "address"
-            }
-        ],
-        "name": "RoleGranted",
-        "type": "event",
-        "inherited": true
-    },
-    {
-        "anonymous": false,
-        "inputs": [
-            {
-                "indexed": true,
-                "internalType": "bytes32",
-                "name": "role",
-                "type": "bytes32"
-            },
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "account",
-                "type": "address"
-            },
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "sender",
-                "type": "address"
-            }
-        ],
-        "name": "RoleRevoked",
-        "type": "event",
-        "inherited": true
     },
     {
         "anonymous": false,
@@ -241,8 +236,7 @@
             }
         ],
         "name": "OwnershipTransferred",
-        "type": "event",
-        "inherited": true
+        "type": "event"
     },
     {
         "inputs": [],
@@ -268,8 +262,7 @@
             }
         ],
         "stateMutability": "view",
-        "type": "function",
-        "inherited": true
+        "type": "function"
     },
     {
         "inputs": [],
@@ -295,6 +288,57 @@
             }
         ],
         "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "agent",
+                "type": "address"
+            }
+        ],
+        "name": "addAgent",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "keeper",
+                "type": "address"
+            }
+        ],
+        "name": "addKeeper",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "_strategy",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "_allocation",
+                "type": "uint256"
+            }
+        ],
+        "name": "addStrategy",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "executeAI",
+        "outputs": [],
+        "stateMutability": "nonpayable",
         "type": "function"
     },
     {
@@ -354,48 +398,6 @@
                 "internalType": "bytes32",
                 "name": "",
                 "type": "bytes32"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "uint256",
-                "name": "index",
-                "type": "uint256"
-            }
-        ],
-        "name": "getStrategy",
-        "outputs": [
-            {
-                "internalType": "address",
-                "name": "strategy",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "allocation",
-                "type": "uint256"
-            },
-            {
-                "internalType": "bool",
-                "name": "active",
-                "type": "bool"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [],
-        "name": "getStrategyCount",
-        "outputs": [
-            {
-                "internalType": "uint256",
-                "name": "",
-                "type": "uint256"
             }
         ],
         "stateMutability": "view",
@@ -490,8 +492,7 @@
             }
         ],
         "stateMutability": "view",
-        "type": "function",
-        "inherited": true
+        "type": "function"
     },
     {
         "inputs": [],
@@ -571,70 +572,6 @@
         "type": "function"
     },
     {
-        "inputs": [],
-        "name": "vault",
-        "outputs": [
-            {
-                "internalType": "address",
-                "name": "",
-                "type": "address"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "_strategy",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "_allocation",
-                "type": "uint256"
-            }
-        ],
-        "name": "addStrategy",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "agent",
-                "type": "address"
-            }
-        ],
-        "name": "addAgent",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "keeper",
-                "type": "address"
-            }
-        ],
-        "name": "addKeeper",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [],
-        "name": "executeAI",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
         "inputs": [
             {
                 "internalType": "bytes32",
@@ -651,8 +588,7 @@
             }
         ],
         "stateMutability": "view",
-        "type": "function",
-        "inherited": true
+        "type": "function"
     },
     {
         "inputs": [
@@ -670,8 +606,7 @@
         "name": "grantRole",
         "outputs": [],
         "stateMutability": "nonpayable",
-        "type": "function",
-        "inherited": true
+        "type": "function"
     },
     {
         "inputs": [
@@ -695,8 +630,7 @@
             }
         ],
         "stateMutability": "view",
-        "type": "function",
-        "inherited": true
+        "type": "function"
     },
     {
         "inputs": [
@@ -714,8 +648,7 @@
         "name": "renounceRole",
         "outputs": [],
         "stateMutability": "nonpayable",
-        "type": "function",
-        "inherited": true
+        "type": "function"
     },
     {
         "inputs": [
@@ -733,8 +666,7 @@
         "name": "revokeRole",
         "outputs": [],
         "stateMutability": "nonpayable",
-        "type": "function",
-        "inherited": true
+        "type": "function"
     },
     {
         "inputs": [
@@ -854,8 +786,49 @@
             }
         ],
         "stateMutability": "view",
-        "type": "function",
-        "inherited": true
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "getStrategyCount",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "index",
+                "type": "uint256"
+            }
+        ],
+        "name": "getStrategy",
+        "outputs": [
+            {
+                "internalType": "address",
+                "name": "strategy",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "allocation",
+                "type": "uint256"
+            },
+            {
+                "internalType": "bool",
+                "name": "active",
+                "type": "bool"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
     },
     {
         "inputs": [
@@ -872,11 +845,10 @@
     },
     {
         "inputs": [],
-        "name": "renounceOwnership",
+        "name": "transferOwnership",
         "outputs": [],
         "stateMutability": "nonpayable",
-        "type": "function",
-        "inherited": true
+        "type": "function"
     },
     {
         "inputs": [
@@ -897,17 +869,16 @@
         "type": "function"
     },
     {
-        "inputs": [
+        "inputs": [],
+        "name": "vault",
+        "outputs": [
             {
                 "internalType": "address",
-                "name": "newOwner",
+                "name": "",
                 "type": "address"
             }
         ],
-        "name": "transferOwnership",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function",
-        "inherited": true
+        "stateMutability": "view",
+        "type": "function"
     }
 ]

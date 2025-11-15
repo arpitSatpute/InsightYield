@@ -196,7 +196,7 @@
 	},
 	{
 		"inputs": [],
-		"name": "airdrop",
+		"name": "airDrop",
 		"outputs": [],
 		"stateMutability": "nonpayable",
 		"type": "function"

@@ -13,6 +13,8 @@ import { Toaster } from "sonner";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext"; // ensure this matches your ThemeContext export
 import ThemeSync from "./components/ThemeSync";
 import About from "./pages/about";
+import SystemFlow from "./aiWorkingFlow";
+import DepositFlow from "./DepositFlow";
 
 
 const queryClient = new QueryClient();
@@ -25,6 +27,8 @@ function AppRoutes() {
       <Route element={<Pools />} path="/pools" />
       <Route element={<Vault />} path="/vault" />
       <Route element={<About />} path="/about" />
+      <Route element={<SystemFlow />} path="/flow" />
+      <Route element={<DepositFlow />} path="/depositFlow" />
       <Route element={<ContactPage />} path="/contact" />
     </Routes>
   );
@@ -38,7 +42,6 @@ export function App() {
           <ThemeProvider>
             <ThemeSync />
             <AppRoutes />
-            {/* read theme from provider so Toaster follows the app theme */}
             <ThemeAwareToaster />
           </ThemeProvider>
         </QueryClientProvider>
