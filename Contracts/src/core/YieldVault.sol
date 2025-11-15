@@ -41,7 +41,7 @@ contract YieldVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
     constructor(
         IERC20 _asset,
         address _strategyManager
-    ) ERC4626(_asset) ERC20("Insight Yield Vault Token", "INSIGHT") Ownable(msg.sender) {
+    ) ERC4626(_asset) ERC20("Yield Vault Token", "yvETH") Ownable(msg.sender) {
         require(
             _strategyManager != address(0),
             "YieldVault: Invalid strategy manager"
