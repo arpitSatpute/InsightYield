@@ -7,6 +7,7 @@ import { useAccount } from "wagmi";
 import { utils } from "ethers";
 import vusdtAbi from "@/abis/vusdt.json";
 import lendingStrategyAbi from "@/abis/lendingStrategy.json"
+import STRATEGY_MANAGER_ABI from "@/abis/strategyManager.json"
 import { Button } from "@heroui/button";
 import { formatUnits, parseUnits } from 'viem';
 
@@ -16,6 +17,7 @@ export default function DocsPage() {
 
   const VUSDT_ADDRESS = import.meta.env.VITE_VUSDT_ADDRESS;
   const LENDING_STRATEGY_ADDRESS = import.meta.env.VITE_LENDING_STRATEGY_ADDRESS;
+  const STRATEGY_MANAGER_ADDRESS = import.meta.env.VITE_STRATEGY_MANAGER_ADDRESS;
   
 
   const { address } = useAccount();
@@ -85,6 +87,26 @@ export default function DocsPage() {
     }
   }
 
+  const addAgent = async() => {
+        writeContract(config, {
+            address: STRATEGY_MANAGER_ADDRESS,
+            abi: STRATEGY_MANAGER_ABI,
+            functionName: "addAgent",
+            args: ["0x023f2e70a25d7ebeca8d62de747dc5c7d2339944"],
+            account: address,
+        });
+    }
+
+    const addKeeper = async() => {
+        writeContract(config, {
+            address: STRATEGY_MANAGER_ADDRESS,      
+            abi: STRATEGY_MANAGER_ABI,
+            functionName: "addKeeper",
+            args: ["0x023f2e70a25d7ebeca8d62de747dc5c7d2339944"],
+            account: address,
+        });
+    }
+
   return (
     <DefaultLayout>
       {/* Info box: show connected user balance */}
@@ -116,6 +138,8 @@ export default function DocsPage() {
 
         <Button onPress={handleAirdrop}>Airdrop</Button>
         <Button onPress={handleTotalAssets}>Lending Assets</Button>
+        <Button onClick={addKeeper}>Add Keeper</Button>
+        <Button onClick={addAgent}>Add Agent</Button>
       </section>
     </DefaultLayout>
   );

@@ -5,7 +5,7 @@ import DefaultLayout from '@/layouts/default';
 import vUSDTABI from '@/abis/vusdt.json';
 import YIELD_VAULT_ABI from '@/abis/yieldVault.json';
 import lendingStrategyAbi from '@/abis/lendingStrategy.json';
-import liquidityStrategyAbi from '@/abis/liquidityManager.json';
+import liquidityStrategyAbi from '@/abis/liquidityStrategy.json';
 import stakingStrategyAbi from '@/abis/stakingStrategy.json';
 import { useAccount } from 'wagmi';
 import { readContract, writeContract, waitForTransactionReceipt } from '@wagmi/core';

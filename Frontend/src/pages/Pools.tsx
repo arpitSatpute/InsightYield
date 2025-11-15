@@ -6,7 +6,7 @@ import { config } from "@/config/config";
 import { formatUnits, parseUnits } from 'viem';
 import yieldVaultAbi from '@/abis/yieldVault.json';
 import lendingStrategyAbi from '@/abis/lendingStrategy.json';
-import liquidityStrategyAbi from '@/abis/liquidityManager.json';
+import liquidityStrategyAbi from '@/abis/liquidityStrategy.json';
 import stakingStrategyAbi from '@/abis/stakingStrategy.json';
 
 
