@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.20;
 
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract vUSDT is ERC20, Ownable {
+contract VirtualUSDT is ERC20, Ownable {
     uint256 public constant AIRDROP_AMOUNT = 10_000e18;
 
     // Track which addresses have already claimed their limited mint
     mapping(address => bool) public hasClaimed;
 
-    constructor () ERC20("virtual USDT", "VUSDT") Ownable(msg.sender) {}
+    constructor () ERC20("Virtual USDT", "VUSDT") Ownable(msg.sender) {}
 
     function mint(address _to, uint256 _amount) public onlyOwner {
         _mint(_to, _amount);
     }
 
-    // Allow each address to mint 10,000 VUSDT only once
-    function airdrop() public {
+    // Allow each address to airdrop 10,000 VUSDT only once for test purposes
+    function airDrop() public {
         require(!hasClaimed[msg.sender], "Already claimed");
         hasClaimed[msg.sender] = true;
         _mint(msg.sender, AIRDROP_AMOUNT);

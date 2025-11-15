@@ -1,17 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 import "forge-std/Script.sol";
-import { vUSDT} from "../src/tokens/vUSDT.sol";
-import { StrategyManager} from "../src/core/StrategyManager.sol";
-import { YieldVault} from "../src/core/YieldVault.sol";
-import { LendingStrategy} from "../src/strategies/LendingStrategy.sol";
-import { LiquidityStrategy} from "../src/strategies/LiquidityStrategy.sol";
-import { StakingStrategy} from "../src/strategies/StakingStrategy.sol";
-/**
- * @title Deploy
- * @notice Deployment script for Yield Aggregator
- * @dev Run with: forge script script/Deploy.s.sol:Deploy --rpc-url <RPC> --broadcast
- */
+import "../src/tokens/vUSDT.sol";
+import "../src/core/StrategyManager.sol";
+import "../src/core/YieldVault.sol";
+import "../src/strategies/LendingStrategy.sol";
+import "../src/strategies/LiquidityStrategy.sol";
+import "../src/strategies/StakingStrategy.sol";
+
 contract Deploy is Script {
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
@@ -23,9 +19,9 @@ contract Deploy is Script {
         
         // 1. Deploy Mock vUSDT
         console.log("1. Deploying Mock vUSDT...");
-        vUSDT vUsdt = new vUSDT();
-        console.log("   vUSDT deployed at:", address(vUsdt));
-        console.log("   Initial supply:", vUsdt.totalSupply() / 1e18, "vUSDT\n");
+        VirtualUSDT vUSDT = new VirtualUSDT();
+        console.log("   vUSDT deployed at:", address(vUSDT));
+        console.log("   Initial supply:", vUSDT.totalSupply() / 1e18, "vUSDT\n");
         
         // 2. Deploy Strategy Manager
         console.log("2. Deploying Strategy Manager...");
@@ -36,21 +32,21 @@ contract Deploy is Script {
         // 3. Deploy Strategies
         console.log("3. Deploying Strategies...");
         
-        LendingStrategy lendingStrategy = new LendingStrategy(vUsdt);
+        LendingStrategy lendingStrategy = new LendingStrategy(vUSDT);
         console.log("   LendingStrategy deployed at:", address(lendingStrategy));
         console.log("   Base APY: 4%");
         
-        LiquidityStrategy liquidityStrategy = new LiquidityStrategy(vUsdt);
+        LiquidityStrategy liquidityStrategy = new LiquidityStrategy(vUSDT);
         console.log("   LiquidityStrategy deployed at:", address(liquidityStrategy));
         console.log("   Base APY: 12%");
         
-        StakingStrategy stakingStrategy = new StakingStrategy(vUsdt);
+        StakingStrategy stakingStrategy = new StakingStrategy(vUSDT);
         console.log("   StakingStrategy deployed at:", address(stakingStrategy));
         console.log("   Base APY: 7%\n");
         
         // 4. Deploy Main Vault
         console.log("4. Deploying Main Vault...");
-        YieldVault vault = new YieldVault(vUsdt, address(strategyManager));
+        YieldVault vault = new YieldVault(vUSDT, address(strategyManager));
         console.log("   YieldVault deployed at:", address(vault));
         console.log("   Vault Token: yvUSDT\n");
         
@@ -81,7 +77,7 @@ contract Deploy is Script {
         console.log("====================================");
         console.log("\nContract Addresses:");
         console.log("-----------------------------------");
-        console.log("vUSDT:              ", address(vUsdt));
+        console.log("vUSDT:              ", address(vUSDT));
         console.log("StrategyManager:   ", address(strategyManager));
         console.log("YieldVault:        ", address(vault));
         console.log("LendingStrategy:   ", address(lendingStrategy));
