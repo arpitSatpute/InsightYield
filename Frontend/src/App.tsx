@@ -11,7 +11,6 @@ import { ThirdwebProvider } from "thirdweb/react";
 import ContactPage from "./pages/contact";
 import { Toaster } from "sonner";
 import { ThemeProvider, useTheme } from "@/context/ThemeContext"; // ensure this matches your ThemeContext export
-import ThemeSync from "./components/ThemeSync";
 import About from "./pages/about";
 import SystemFlow from "./aiWorkingFlow";
 import DepositFlow from "./DepositFlow";
@@ -39,29 +38,10 @@ export function App() {
     <WagmiProvider config={config}>
       <ThirdwebProvider>
         <QueryClientProvider client={queryClient}>
-          <ThemeProvider>
-            <ThemeSync />
             <AppRoutes />
-            <ThemeAwareToaster />
-          </ThemeProvider>
         </QueryClientProvider>
       </ThirdwebProvider>
     </WagmiProvider>
   );
 }
 
-function ThemeAwareToaster() {
-  // make hook usage resilient: if useTheme throws (no provider) fall back to localStorage / prefers-color-scheme
-  let theme = "light";
-  try {
-    const themeHook = useTheme();
-    theme = Array.isArray(themeHook) ? themeHook[0] : themeHook?.theme ?? themeHook ?? "light";
-  } catch (e) {
-    try {
-      const stored = typeof window !== "undefined" && localStorage.getItem("theme");
-      if (stored) theme = stored;
-      else if (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) theme = "dark";
-    } catch {}
-  }
-  return <Toaster position="bottom-right" theme={theme === "dark" ? "dark" : "light"} />;
-}

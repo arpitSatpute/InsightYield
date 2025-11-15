@@ -3,11 +3,11 @@ import { Link } from '@heroui/link'
 import { Menu, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { siteConfig } from '@/config/site'
-import  ThemeToggle  from '@/components/ThemeToggle'
 import { ConnectButton } from "thirdweb/react";
 import { client } from "../config/thirdwebConfig";
 import { createWallet } from "thirdweb/wallets";
 import InsightYieldLogo from "./InsightYieldLogo"
+import { ThemeSwitch } from './theme-switch'
 
 export const Navbar = () => {
     const [menuState, setMenuState] = React.useState(false)
@@ -45,7 +45,7 @@ export const Navbar = () => {
                             </Link>
 
                             <div className="flex items-center gap-2 lg:hidden">
-                                <ThemeToggle />
+                                <ThemeSwitch />
                                 <button
                                     onClick={() => setMenuState(!menuState)}
                                     aria-label={menuState == true ? 'Close Menu' : 'Open Menu'}
@@ -85,7 +85,7 @@ export const Navbar = () => {
                                 </ul>
                             </div>
                             <div className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit lg:items-center">
-                                <ThemeToggle />
+                                <ThemeSwitch />
                                 <div className={cn(isScrolled && 'lg:hidden')}>
                                     <ConnectButton
                                         client={client}
