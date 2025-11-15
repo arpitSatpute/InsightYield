@@ -8,6 +8,7 @@ import yieldVaultAbi from '@/abis/yieldVault.json';
 import lendingStrategyAbi from '@/abis/lendingStrategy.json';
 import liquidityStrategyAbi from '@/abis/liquidityStrategy.json';
 import stakingStrategyAbi from '@/abis/stakingStrategy.json';
+import strategyManagerAbi from "@/abis/strategyManager.json";
 
 
 import DefaultLayout from '@/layouts/default';
@@ -19,6 +20,8 @@ export default function PoolsPage() {
     const LENDING_VAULT_ADDRESS = import.meta.env.VITE_LENDING_STRATEGY_ADDRESS as `0x${string}`;
     const LIQUIDITY_VAULT_ADDRESS = import.meta.env.VITE_LIQUIDITY_STRATEGY_ADDRESS as `0x${string}`;
     const STAKING_VAULT_ADDRESS = import.meta.env.VITE_STAKING_STRATEGY_ADDRESS as `0x${string}`;
+    const STRATEGY_MANAGER_ADDRESS = import.meta.env.VITE_STRATEGY_MANAGER_ADDRESS as `0x${string}`;
+    
 
 
     const [isDark, setIsDark] = useState(true);
@@ -32,17 +35,14 @@ export default function PoolsPage() {
     
     const [isLoading, setIsLoading] = useState(false);
     
-    const [lendingTotalHarvested, setLendingTotalHarvested] = useState<string>("0.00");
-    const [liquidityTotalHarvested, setLiquidityTotalHarvested] = useState<string>("0.00");
-    const [stakingTotalHarvested, setStakingTotalHarvested] = useState<string>("0.00");
-    
-    const [lendingTotalWithdrawals, setLendingTotalWithdrawals] = useState<string>("0.00");
-    const [liquidityTotalWithdrawals, setLiquidityTotalWithdrawals] = useState<string>("0.00");
-    const [stakingTotalWithdrawals, setStakingTotalWithdrawals] = useState<string>("0.00");
+    const [lendingLastYieldUpdate, setLendingLastYieldUpdate] = useState<number | null>(null);
+    const [liquidityLastYieldUpdate, setLiquidityLastYieldUpdate] = useState<number | null>(null);
+    const [stakingLastYieldUpdate, setStakingLastYieldUpdate] = useState<number | null>(null);
 
-    const [lendingTotalDeposited, setLendingTotalDeposited] = useState<string>("0.00");
-    const [liquidityTotalDeposited, setLiquidityTotalDeposited] = useState<string>("0.00");
-    const [stakingTotalDeposited, setStakingTotalDeposited] = useState<string>("0.00");
+    
+    const [lendingAllocation, setLendingAllocation] = useState<string>("0.00");
+    const [liquidityAllocation, setLiquidityAllocation] = useState<string>("0.00");
+    const [stakingAllocation, setStakingAllocation] = useState<string>("0.00");
 
     const [lendingBaseAPY, setLendingBaseAPY] = useState<string>("0.00");
     const [liquidityBaseAPY, setLiquidityBaseAPY] = useState<string>("0.00");
@@ -52,17 +52,9 @@ export default function PoolsPage() {
     const [liquidityEstimatedAPY, setLiquidityEstimatedAPY] = useState<string>("0.00");
     const [stakingEstimatedAPY, setStakingEstimatedAPY] = useState<string>("0.00");
 
-    // const [lendingAPY, setLendingAPY] = useState<string>("0.00");
-    // const [liquidityAPY, setLiquidityAPY] = useState<string>("0.00");
-    // const [stakingAPY, setStakingAPY] = useState<string>("0.00");
-
     const [lendingAccumulatedYield, setLendingAccumulatedYield] = useState<string>("0.00");
     const [liquidityAccumulatedYield, setLiquidityAccumulatedYield] = useState<string>("0.00");
     const [stakingAccumulatedYield, setStakingAccumulatedYield] = useState<string>("0.00");
-
-    // const [lendingRawFunds, setLendingRawFunds] = useState<string>("0.00");
-    // const [liquidityRawFunds, setLiquidityRawFunds] = useState<string>("0.00");
-    // const [stakingRawFunds, setStakingRawFunds] = useState<string>("0.00");
 
     const [lendingBalance, setLendingBalance] = useState<string>("0.00");
     const [liquidityBalance, setLiquidityBalance] = useState<string>("0.00");
@@ -78,73 +70,93 @@ export default function PoolsPage() {
 
       const vaultTVL = async () => {
         try {
-          const vaultTVL = await readContract(config, {
+          const tvl = await readContract(config, {
             address: YIELD_VAULT_ADDRESS,
             abi: yieldVaultAbi,
             functionName: 'totalAssets',
-            args: [],
           }) as bigint;
-          if (mounted) {
-            setTotalTVL(formatUnits(await vaultTVL, 18));
-          }
+          if (mounted) setTotalTVL(formatUnits(tvl, 18));
         } catch (error) {
           console.error("Error fetching vault data:", error);
         }
-      }
+      };
 
-      const vaultAPY = async () => { 
+      const vaultAPY = async () => {
         try {
-          const vaultApy = await readContract(config, {
+          const supply = await readContract(config, {
             address: YIELD_VAULT_ADDRESS,
             abi: yieldVaultAbi,
             functionName: 'totalSupply',
-            args: [],
           }) as bigint;
-          if (mounted) {
-            setTotalAPY(formatUnits(await vaultApy, 18));
-          }
+          if (mounted) setTotalAPY(formatUnits(supply, 18));
         } catch (error) {
           console.error("Error fetching vault APY:", error);
         }
-      }
+      };
 
-      
-      const accumulateYield = async() => {
+      const getAllocations = async () => {
         try {
-          const lendingYield = await readContract(config, {
+          const lend = await readContract(config, {
+            address: STRATEGY_MANAGER_ADDRESS,
+            abi: strategyManagerAbi,
+            functionName: "getStrategy",
+            args: [0],
+          }) as [string, bigint, boolean];
+          console.log(lend[1]);
+          if (mounted) setLendingAllocation(formatUnits(await lend[1], 2)); 
+          
+          // allocation is index 1
+
+          const liquidity = await readContract(config, {
+            address: STRATEGY_MANAGER_ADDRESS,
+            abi: strategyManagerAbi,
+          functionName: "getStrategy",
+            args: [1],
+          }) as [string, bigint, boolean];
+
+          if (mounted) setLiquidityAllocation(formatUnits(await liquidity[1], 2));
+
+          const staking = await readContract(config, {
+            address: STRATEGY_MANAGER_ADDRESS,
+            abi: strategyManagerAbi,
+            functionName: "getStrategy",
+            args: [2],
+          }) as [string, bigint, boolean];
+
+          if (mounted) setStakingAllocation(formatUnits(await staking[1], 2));
+
+        } catch (err) {
+          console.error("Error allocations:", err);
+        }
+      };
+
+      const accumulateYield = async () => {
+        try {
+          const lending = await readContract(config, {
             address: LENDING_VAULT_ADDRESS,
             abi: lendingStrategyAbi,
             functionName: 'accumulatedYield',
-            args: [],
           }) as bigint;
-          if (mounted) {
-            setLendingAccumulatedYield(formatUnits(await lendingYield, 18));
-          }
+          if (mounted) setLendingAccumulatedYield(formatUnits(lending, 18));
 
-          const liquidityYield = await readContract(config, {
+          const liquidity = await readContract(config, {
             address: LIQUIDITY_VAULT_ADDRESS,
             abi: liquidityStrategyAbi,
             functionName: 'accumulatedYield',
-            args: [],
           }) as bigint;
-          if (mounted) {
-            setLiquidityAccumulatedYield(formatUnits(await liquidityYield, 18));
-          }
+          if (mounted) setLiquidityAccumulatedYield(formatUnits(liquidity, 18));
 
-          const stakingYield = await readContract(config, {
+          const staking = await readContract(config, {
             address: STAKING_VAULT_ADDRESS,
             abi: stakingStrategyAbi,
             functionName: 'accumulatedYield',
-            args: [],
           }) as bigint;
-          if (mounted) {
-            setStakingAccumulatedYield(formatUnits(await stakingYield, 18));
-          }
+          if (mounted) setStakingAccumulatedYield(formatUnits(staking, 18));
 
-        } catch (error) {
-          console.error("Error accumulating yield:", error);
+        } catch (err) {
+          console.error("Error accumulating yield:", err);
         }
-      }
+      };
 
       const baseAPY = async () => {
         try {
@@ -187,10 +199,10 @@ export default function PoolsPage() {
             address: LENDING_VAULT_ADDRESS,
             abi: lendingStrategyAbi,
             functionName: 'totalAssets',
-            args: [],
           }) as bigint;
           if (mounted) {
             setLendingTotalAssets(formatUnits(lendingAssets, 18));
+            console.log(lendingTotalAssets);
           }
         } catch (error) {
           console.warn("Lending totalAssets not available, using fallback");
@@ -205,6 +217,8 @@ export default function PoolsPage() {
           }) as bigint;
           if (mounted) {
             setLiquidityTotalAssets(formatUnits(liquidityAssets, 18));
+            console.log(liquidityTotalAssets);
+
           }
         } catch (error) {
           console.warn("Liquidity totalAssets not available, using fallback");
@@ -219,45 +233,38 @@ export default function PoolsPage() {
           }) as bigint;
           if (mounted) {
             setStakingTotalAssets(formatUnits(stakingAssets, 18));
+            console.log(stakingTotalAssets);
           }
         } catch (error) {
           console.warn("Staking totalAssets not available, using fallback");
         }
       }
 
-      const totalHarvested = async () => {
+      const lastYieldUpdate = async () => {
         try {
-          const lendingHarvested = await readContract(config, {
-            address: LENDING_VAULT_ADDRESS,
-            abi: lendingStrategyAbi,
-            functionName: 'totalHarvested',
-            args: [],
-          }) as bigint;
-          if (mounted) {
-            setLendingTotalHarvested(formatUnits(await lendingHarvested, 18));
-          }
+          // Last Yield Update (store raw timestamp)
+            const lendTs = await readContract(config, {
+              address: LENDING_VAULT_ADDRESS,
+              abi: lendingStrategyAbi,
+              functionName: "lastYieldUpdate"
+            }) as bigint;
+            setLendingLastYieldUpdate(Number(lendTs));
 
-          const liquidityHarvested = await readContract(config, {
-            address: LIQUIDITY_VAULT_ADDRESS,
-            abi: liquidityStrategyAbi,
-            functionName: 'totalHarvested',
-            args: [],
-          }) as bigint;
-          if (mounted) {
-            setLiquidityTotalHarvested(formatUnits(await liquidityHarvested, 18));
-          }
-          const stakingHarvested = await readContract(config, {
-            address: STAKING_VAULT_ADDRESS,
-            abi: stakingStrategyAbi,
-            functionName: 'totalHarvested',
-            args: [],
-          }) as bigint;
-          if (mounted) {
-            setStakingTotalHarvested(formatUnits(await stakingHarvested, 18));
-          }
+            const liqTs = await readContract(config, {
+              address: LIQUIDITY_VAULT_ADDRESS,
+              abi: liquidityStrategyAbi,
+              functionName: "lastYieldUpdate"
+            }) as bigint;
+            setLiquidityLastYieldUpdate(Number(liqTs));
 
+            const stakeTs = await readContract(config, {
+              address: STAKING_VAULT_ADDRESS,
+              abi: stakingStrategyAbi,
+              functionName: "lastYieldUpdate"
+            }) as bigint;
+            setStakingLastYieldUpdate(Number(stakeTs));
         } catch (error) {
-          console.error("Error fetching total harvested:", error);
+          console.error("Error fetching last yield update:", error);
         }
       }
 
@@ -369,10 +376,11 @@ export default function PoolsPage() {
 
       vaultTVL();
       vaultAPY();
+      getAllocations();
       accumulateYield();
       baseAPY();
       totalAssets();
-      totalHarvested();
+      lastYieldUpdate();
       estimatedAPY();
       totalSupply();
       balances();
@@ -381,6 +389,29 @@ export default function PoolsPage() {
         mounted = false;
       };
     }, [LENDING_VAULT_ADDRESS, LIQUIDITY_VAULT_ADDRESS, STAKING_VAULT_ADDRESS]);
+
+
+    function formatTimestamp(ts: number | null) {
+      if (!ts) return "-";
+      return new Date(ts * 1000).toLocaleString();
+    }
+
+    function timeAgo(ts: number | null) {
+      if (!ts) return "-";
+      const diff = Date.now() - ts * 1000;
+
+      const sec = Math.floor(diff / 1000);
+      if (sec < 60) return `${sec}s ago`;
+
+      const min = Math.floor(sec / 60);
+      if (min < 60) return `${min}m ago`;
+
+      const hr = Math.floor(min / 60);
+      if (hr < 24) return `${hr}h ago`;
+
+      const day = Math.floor(hr / 24);
+      return `${day}d ago`;
+    }
 
 
     // Strategy Manager Stats
@@ -398,11 +429,11 @@ export default function PoolsPage() {
             id: 1,
             name: 'Lending Strategy',
             icon: 'Landmark',
-            allocation: 4000,
+            allocation: lendingAllocation ? parseFloat(lendingAllocation) : 0,
             baseAPY: lendingBaseAPY ? parseFloat(lendingBaseAPY) : 0,
             estimatedAPY: lendingEstimatedAPY ? parseFloat(lendingEstimatedAPY) : 0,
             totalAssets: lendingTotalAssets ? parseFloat(lendingTotalAssets) : 0,
-            totalHarvested: lendingTotalHarvested ? parseFloat(lendingTotalHarvested) : 0,
+            lastYieldUpdate: lendingLastYieldUpdate ? timeAgo(lendingLastYieldUpdate) : "--/--/----",
             accumulatedYield: lendingAccumulatedYield ? parseFloat(lendingAccumulatedYield) : 0,
             active: true,
             totalBalance: lendingBalance ? parseFloat(lendingBalance) : 0,
@@ -412,11 +443,11 @@ export default function PoolsPage() {
             id: 2,
             name: 'Liquidity Strategy',
             icon: 'Gauge',
-            allocation: 3000,
+            allocation: liquidityAllocation,
             baseAPY: liquidityBaseAPY ? parseFloat(liquidityBaseAPY) : 0,
             estimatedAPY: liquidityEstimatedAPY ? parseFloat(liquidityEstimatedAPY) : 0,
             totalAssets: liquidityTotalAssets ? parseFloat(liquidityTotalAssets) : 0,
-            totalHarvested: liquidityTotalHarvested ? parseFloat(liquidityTotalHarvested) : 0,
+            lastYieldUpdate: liquidityLastYieldUpdate ? timeAgo(liquidityLastYieldUpdate) : 0,
             accumulatedYield: liquidityAccumulatedYield ? parseFloat(liquidityAccumulatedYield) : 0,
             active: true,
             totalBalance: liquidityBalance ? parseFloat(liquidityBalance) : 0,
@@ -424,13 +455,13 @@ export default function PoolsPage() {
         },
         {
             id: 3,
-            name: 'Strategy Pool',
+            name: 'Staking Strategy',
             icon: 'Zap',
-            allocation: 3000,
+            allocation: stakingAllocation,
             baseAPY: stakingBaseAPY ? parseFloat(stakingBaseAPY) : 0,
             estimatedAPY: stakingEstimatedAPY ? parseFloat(stakingEstimatedAPY) : 0,
             totalAssets: stakingTotalAssets ? parseFloat(stakingTotalAssets) : 0,
-            totalHarvested: stakingTotalHarvested ? parseFloat(stakingTotalHarvested) : 0,
+            lastYieldUpdate: stakingLastYieldUpdate ? timeAgo(stakingLastYieldUpdate) : 0,
             accumulatedYield: stakingAccumulatedYield ? parseFloat(stakingAccumulatedYield) : 0,
             active: true,
             totalBalance: stakingBalance ? parseFloat(stakingBalance) : 0,
@@ -587,14 +618,14 @@ export default function PoolsPage() {
 
                                                     <div className="bg-muted/50 rounded-xl p-4">
                                                         <div className="text-xs text-muted-foreground mb-2">Total Assets</div>
-                                                        <div className="text-2xl font-bold">${(strategy.totalAssets ).toFixed(2)}M</div>
+                                                        <div className="text-2xl font-bold">${(strategy.totalAssets).toFixed(2)}</div>
                                                     </div>
                                                     <div className="bg-gradient-to-br from-indigo-500/5 to-indigo-500/0 border border-indigo-500/20 rounded-xl p-4">
                                                         <div className="flex items-center gap-2 mb-2">
                                                             <Gauge className="w-4 h-4 text-indigo-500" />
                                                             <span className="text-sm text-muted-foreground">Allocation Weight</span>
                                                         </div>
-                                                        <div className="text-2xl font-bold text-indigo-500">{formatBasisPoints(strategy.allocation)}</div>
+                                                        <div className="text-2xl font-bold text-indigo-500">{strategy.allocation} %</div>
                                                         {/* <div className="text-xs text-muted-foreground mt-1">Of total vault</div> */}
                                                     </div>
                                                     
@@ -605,9 +636,9 @@ export default function PoolsPage() {
                                                     <div className="bg-gradient-to-br from-primary/5 to-primary/0 border rounded-xl p-4">
                                                         <div className="flex items-center gap-2 mb-2">
                                                             <RefreshCw className="w-4 h-4 text-primary" />
-                                                            <span className="text-sm text-muted-foreground">Total Harvested</span>
+                                                            <span className="text-sm text-muted-foreground">Last Yield Update</span>
                                                         </div>
-                                                        <div className="text-2xl font-bold">${(Number(strategy.totalHarvested) || 0).toFixed(2)}</div>
+                                                        <div className="text-2xl font-bold">{(strategy.lastYieldUpdate) || "--/--/----"}</div>
                                                         {/* <div className="text-xs text-muted-foreground mt-1">Last harvest: {strategy.lastHarvest}</div> */}
                                                     </div>
                                                       <div className="bg-muted/50 rounded-xl p-4">
