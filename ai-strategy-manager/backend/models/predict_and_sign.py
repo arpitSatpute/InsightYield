@@ -1,6 +1,6 @@
 """
 Predict optimal allocations and sign for smart contract submission
-FIXED for eth-account 0.10+
+FIXED: Proper nonce synchronization with blockchain
 """
 
 import pandas as pd
@@ -32,6 +32,21 @@ class AllocationPredictor:
         self.private_key = os.getenv('PRIVATE_KEY')
         self.account = Account.from_key(self.private_key)
         self.contract_address = os.getenv('STRATEGY_MANAGER_ADDRESS')
+        
+        # Contract ABI for nonce reading
+        self.contract_abi = [
+            {
+                "inputs": [{"internalType": "address", "name": "agent", "type": "address"}],
+                "name": "getAgentNonce",
+                "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+                "stateMutability": "view",
+                "type": "function"
+            }
+        ]
+        self.contract = self.w3.eth.contract(
+            address=Web3.to_checksum_address(self.contract_address),
+            abi=self.contract_abi
+        )
         
     def fetch_current_data(self, days=30):
         """Fetch latest performance data for all strategies"""
@@ -140,8 +155,19 @@ class AllocationPredictor:
         
         return predictions, confidence
     
-    def get_agent_nonce(self):
-        """Get current nonce for the agent"""
+    def get_onchain_nonce(self):
+        """Get current nonce directly from blockchain (SOURCE OF TRUTH)"""
+        try:
+            nonce = self.contract.functions.getAgentNonce(self.account.address).call()
+            print(f"📡 On-chain nonce for {self.account.address}: {nonce}")
+            return nonce
+        except Exception as e:
+            print(f"⚠️  Could not read on-chain nonce: {e}")
+            print("   Falling back to MongoDB nonce...")
+            return self.get_mongodb_nonce()
+    
+    def get_mongodb_nonce(self):
+        """Get nonce from MongoDB (backup method)"""
         nonces_col = self.db['agent_nonces']
         nonce_doc = nonces_col.find_one({'agent': self.account.address})
         
@@ -151,23 +177,47 @@ class AllocationPredictor:
             nonces_col.insert_one({'agent': self.account.address, 'nonce': 0})
             return 0
     
-    def increment_nonce(self):
-        """Increment nonce after signing"""
+    def sync_nonce_to_mongodb(self, onchain_nonce):
+        """Synchronize MongoDB nonce with blockchain"""
         nonces_col = self.db['agent_nonces']
         nonces_col.update_one(
             {'agent': self.account.address},
-            {'$inc': {'nonce': 1}},
+            {'$set': {'nonce': onchain_nonce, 'synced_at': datetime.now()}},
             upsert=True
         )
+        print(f"✅ MongoDB nonce synchronized: {onchain_nonce}")
+    
+    def increment_nonce(self, current_nonce):
+        """Increment nonce for next transaction"""
+        next_nonce = current_nonce + 1
+        nonces_col = self.db['agent_nonces']
+        nonces_col.update_one(
+            {'agent': self.account.address},
+            {'$set': {'nonce': next_nonce, 'updated_at': datetime.now()}},
+            upsert=True
+        )
+        print(f"📝 Nonce incremented: {current_nonce} → {next_nonce}")
+        return next_nonce
     
     def sign_recommendation(self, predictions, confidence):
-        """Sign allocation recommendation with EIP-712"""
-        nonce = self.get_agent_nonce()
+        """Sign allocation recommendation with EIP-712 and proper nonce"""
+        
+        # CRITICAL: Always get nonce from blockchain (source of truth)
+        onchain_nonce = self.get_onchain_nonce()
+        
+        # Sync MongoDB with blockchain nonce
+        self.sync_nonce_to_mongodb(onchain_nonce)
+        
+        # Use the blockchain nonce for this recommendation
+        nonce = onchain_nonce
+        
         timestamp = int(datetime.now().timestamp())
         deadline = timestamp + 3600
         
         indices = [p['index'] for p in predictions]
         allocations = [p['recommended_allocation'] for p in predictions]
+        
+        print(f"\n🔐 Signing recommendation with nonce: {nonce}")
         
         # EIP-712 structured data
         structured_data = {
@@ -212,7 +262,8 @@ class AllocationPredictor:
         encoded_data = encode_typed_data(full_message=structured_data)
         signed_message = self.account.sign_message(encoded_data)
         
-        self.increment_nonce()
+        # Increment nonce in MongoDB for next time
+        self.increment_nonce(nonce)
         
         return {
             'recommendation': structured_data['message'],
@@ -231,22 +282,48 @@ class AllocationPredictor:
             'signature': signed_data['signature'],
             'predictions': predictions,
             'status': 'pending',
-            'submitted': False
+            'submitted': False,
+            'nonce_source': 'blockchain',  # Indicates nonce came from chain
+            'created_at': datetime.now()
         }
         
         result = recommendations_col.insert_one(doc)
         return str(result.inserted_id)
+    
+    def cleanup_old_recommendations(self):
+        """Clean up old pending recommendations (older than 2 hours)"""
+        recommendations_col = self.db['recommendations']
+        cutoff = datetime.now() - timedelta(hours=2)
+        
+        result = recommendations_col.update_many(
+            {
+                'status': 'pending',
+                'timestamp': {'$lt': cutoff}
+            },
+            {
+                '$set': {
+                    'status': 'expired',
+                    'expired_at': datetime.now()
+                }
+            }
+        )
+        
+        if result.modified_count > 0:
+            print(f"🧹 Cleaned up {result.modified_count} old pending recommendations")
 
 
 def main():
     predictor = AllocationPredictor(
-        mongo_uri=os.getenv('MONGO_URI', 'mongodb+srv://arpitsatpute3964_db_user:arpits_15@cluster0.z2r371s.mongodb.net/?appName=Cluster0'),
+        mongo_uri=os.getenv('MONGO_URI', 'mongodb://localhost:27017'),
         db_name=os.getenv('MONGO_DB', 'defi_strategies'),
         model_path=os.getenv('MODEL_PATH', 'strategy_model.pkl')
     )
     
     print("🤖 AI Strategy Allocation Agent")
     print("=" * 50)
+    
+    # Clean up old recommendations first
+    predictor.cleanup_old_recommendations()
     
     # Predict allocations
     predictions, confidence = predictor.predict_allocations()
@@ -266,7 +343,7 @@ def main():
         print(f"\n⚠️  Confidence too low (< {min_confidence*100}%). Skipping submission.")
         return
     
-    # Sign recommendation
+    # Sign recommendation (uses blockchain nonce)
     print("\n✍️  Signing recommendation...")
     signed_data = predictor.sign_recommendation(predictions, confidence)
     
@@ -275,6 +352,7 @@ def main():
     
     print(f"\n✅ Recommendation saved: {rec_id}")
     print(f"Signer: {signed_data['signer']}")
+    print(f"Nonce: {signed_data['recommendation']['nonce']}")
     print(f"Signature: {signed_data['signature'][:20]}...")
     print("\n📡 Ready for keeper to submit to blockchain")
 
