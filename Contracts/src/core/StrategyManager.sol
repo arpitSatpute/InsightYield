@@ -266,4 +266,12 @@ contract StrategyManager is Ownable, AccessControl, ReentrancyGuard, EIP712 {
     function getDomainSeparator() external view returns (bytes32) {
         return _domainSeparatorV4();
     }
+
+    function getAllocations() external view returns (uint256[] memory) {
+        uint256[] memory allocs = new uint256[](strategies.length);
+        for (uint256 i = 0; i < strategies.length; i++) {
+            allocs[i] = strategies[i].allocation;
+        }
+        return allocs;
+    }
 }
