@@ -194,37 +194,86 @@ contract YieldVault is ERC4626, Ownable, ReentrancyGuard, Pausable {
     }
 
     function _rebalance() internal {
-        // Harvest all strategies first
-        _harvestAll();
+    // Harvest first (keep your current behavior)
+    _harvestAll();
 
-        uint256 totalBalance = IERC20(asset()).balanceOf(address(this));
+    // Compute overall assets (vault + strategies)
+    uint256 totalAssets_ = totalAssets();
+    if (totalAssets_ == 0) {
+        lastRebalance = block.timestamp;
+        emit Rebalanced(block.timestamp, 0);
+        return;
+    }
 
-        if (totalBalance == 0) return;
+    uint256 strategyCount = strategyManager.getStrategyCount();
 
-        // Allocate to strategies based on allocation percentages
-        uint256 strategyCount = strategyManager.getStrategyCount();
+    // --- First pass: compute targets and withdraw excess from strategies ---
+    // We will withdraw any amount a strategy has above its target.
+    for (uint256 i = 0; i < strategyCount; i++) {
+        (address strategy, uint256 allocation, bool active) = strategyManager.getStrategy(i);
+        if (!active || allocation == 0) continue;
 
-        for (uint256 i = 0; i < strategyCount; i++) {
-            (
-                address strategy,
-                uint256 allocation,
-                bool active
-            ) = strategyManager.getStrategy(i);
+        uint256 targetAmount = (totalAssets_ * allocation) / BASIS_POINTS;
 
-            if (active && allocation > 0) {
-                uint256 targetAmount = (totalBalance * allocation) /
-                    BASIS_POINTS;
+        // get current strategy balance
+        uint256 strategyBalance = 0;
+        try IStrategy(strategy).balanceOf() returns (uint256 b) {
+            strategyBalance = b;
+        } catch {
+            // can't read balance: skip withdrawing from this strategy
+            continue;
+        }
 
-                if (targetAmount > 0) {
-                    IERC20(asset()).approve(strategy, targetAmount);
-                    try
-                        IStrategy(strategy).deposit(targetAmount, address(this))
-                    {
-                        // Deposit successful
-                    } catch {
-                        // Skip strategy if deposit fails
-                        continue;
-                    }
+        // if strategy has more than target, withdraw the excess
+        if (strategyBalance > targetAmount) {
+            uint256 excess = strategyBalance - targetAmount;
+
+                // attempt withdraw of excess (gracefully ignore failure)
+            try IStrategy(strategy).withdraw(excess, address(this), address(this)) returns (uint256 withdrawn) {
+                // withdrawn may be < excess — that's okay; we will deposit whatever we actually pulled.
+            } catch {
+                // withdraw failed: continue
+                continue;
+            }
+            }
+        }
+
+        // --- Second pass: deposit to under-allocated strategies ---
+        uint256 available = IERC20(asset()).balanceOf(address(this));
+        if (available == 0) {
+            // nothing to deploy
+            lastRebalance = block.timestamp;
+            emit Rebalanced(block.timestamp, totalAssets());
+            return;
+        }
+
+        for (uint256 i = 0; i < strategyCount && available > 0; i++) {
+            (address strategy, uint256 allocation, bool active) = strategyManager.getStrategy(i);
+            if (!active || allocation == 0) continue;
+
+            uint256 targetAmount = (totalAssets_ * allocation) / BASIS_POINTS;
+
+            uint256 strategyBalance = 0;
+            try IStrategy(strategy).balanceOf() returns (uint256 b) {
+                strategyBalance = b;
+            } catch {
+                // If we can't read balance, skip depositing
+                continue;
+            }
+
+            if (strategyBalance < targetAmount) {
+                uint256 need = targetAmount - strategyBalance;
+                uint256 toDeposit = need <= available ? need : available;
+
+                // Approve & deposit only needed amount
+                IERC20(asset()).approve(strategy, toDeposit);
+                try IStrategy(strategy).deposit(toDeposit, address(this)) {
+                    // success
+                    available -= toDeposit;
+                } catch {
+                    // deposit failed, continue to next
+                    IERC20(asset()).approve(strategy, 0);
+                    continue;
                 }
             }
         }
