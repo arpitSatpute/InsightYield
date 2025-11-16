@@ -12,7 +12,7 @@ load_dotenv()
 
 def debug_database():
     # Connect to MongoDB
-    mongo_uri = os.getenv('MONGO_URI', 'mongodb://localhost:27017')
+    mongo_uri = os.getenv('MONGO_URI', 'mongodb+srv://arpitsatpute3964_db_user:arpits_15@cluster0.z2r371s.mongodb.net/?appName=Cluster0')
     db_name = os.getenv('MONGO_DB', 'defi_strategies')
     
     print(f"🔌 Connecting to MongoDB...")

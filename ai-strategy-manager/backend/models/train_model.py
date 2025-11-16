@@ -219,7 +219,7 @@ class StrategyAIModel:
 
 if __name__ == "__main__":
     # Configuration
-    MONGO_URI = "mongodb://localhost:27017"
+    MONGO_URI = "mongodb+srv://arpitsatpute3964_db_user:arpits_15@cluster0.z2r371s.mongodb.net/?appName=Cluster0"
     DB_NAME = "defi_strategies"
     
     print("🤖 AI Strategy Model Trainer")
