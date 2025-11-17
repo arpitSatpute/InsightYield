@@ -1,15 +1,6 @@
-/**
- * Enhanced Continuous Keeper Service
- * Features:
- * 1. Submits AI recommendations to StrategyManager (updates allocations)
- * 2. Monitors Deposit events from YieldVault
- * 3. Auto-triggers YieldVault.rebalance() when deposits occur
- * 4. Runs all processes seamlessly without interruption
- */
+
 const { ethers } = require('ethers');
 const { MongoClient } = require('mongodb');
-// const STRATEGY_MANAGER_ABI = require('../abis/strategyManager.json');
-// const YIELD_VAULT_ABI = require('../abis/yieldVault.json');
 require('dotenv').config();
 
 
