@@ -8,6 +8,8 @@
  */
 const { ethers } = require('ethers');
 const { MongoClient } = require('mongodb');
+// const STRATEGY_MANAGER_ABI = require('../abis/strategyManager.json');
+// const YIELD_VAULT_ABI = require('../abis/yieldVault.json');
 require('dotenv').config();
 
 
@@ -17,11 +19,13 @@ const STRATEGY_MANAGER_ABI = [
   "function getAgentNonce(address agent) external view returns (uint256)",
   "function updateAllocations(uint256[] calldata newAllocations) external",
   "function getAllocations() external view returns (uint256[] memory)",
+  "function executeAI() external",
   "event AISubmitted(address indexed agent, uint256 nonce, uint256 confidence)",
-  "event AllocationsUpdated(uint256[] newAllocations, uint256 timestamp)"
+  "event AllocationsUpdated(uint256[] newAllocations, uint256 timestamp)",
+  "function getAllocations() external view returns (uint256[] memory)",
 ];
 
-// Yield Vault ABI
+// // Yield Vault ABI
 const YIELD_VAULT_ABI = [
   "function deposit(uint256 assets, address receiver) external returns (uint256 shares)",
   "function totalAssets() external view returns (uint256)",
@@ -498,6 +502,13 @@ class EnhancedKeeper {
         newAllocations.forEach((alloc, i) => {
           console.log(`      Strategy ${i}: ${(alloc.toNumber() / 100).toFixed(2)}%`);
         });
+        try {
+          const executeAiAllocations = await this.strategyManager.executeAI();
+          console.log("\n ✅ Ai Execute. Allocatons Updated");
+        }
+        catch (err) {
+          console.log("Failed to execute", err);
+        }
       } catch (error) {
         console.log('   Unable to fetch updated allocations');
       }
