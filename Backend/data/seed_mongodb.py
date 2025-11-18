@@ -53,7 +53,7 @@ def generate_strategy_performance(strategy_address, index, days=90):
     
     return performance_data
 
-def seed_database(mongo_uri=os.getenv("MONGO_URI"), db_name=os.getenv("MONGO_DB")):
+def seed_database(mongo_uri="mongodb+srv://arpitsatpute3964_db_user:arpits_15@cluster0.z2r371s.mongodb.net/?appName=Cluster0", db_name="defi_strategies"):
     """Seed database with sample data"""
     try:
         client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)

@@ -1,8 +1,0 @@
-{
-  "dependencies": {
-    "dotenv": "^17.2.3",
-    "ethers": "^5.8.0",
-    "mongodb": "^7.0.0",
-    "winston": "^3.18.3"
-  }
-}

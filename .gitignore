@@ -21,3 +21,4 @@ package-lock.json
 /.pnp.*
 **/cache/
 **/broadcast
+/Backend/data/
