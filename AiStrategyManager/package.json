@@ -1,4 +1,13 @@
 {
+  "name": "insightyield-service",
+  "version": "1.0.0",
+  "description": "AI strategy manager prediction runner",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
   "dependencies": {
     "dotenv": "^17.2.3",
     "ethers": "^5.8.0",
