@@ -1,0 +1,5 @@
+# Keep this minimal - only exclude dev files
+*.md
+.git
+.gitignore
+.env.example
