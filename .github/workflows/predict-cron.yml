@@ -1,0 +1,53 @@
+name: Run Prediction Script
+
+on:
+  schedule:
+    # Run every hour at minute 0
+    - cron: '0 * * * *'
+  
+  # Allow manual trigger from GitHub UI
+  workflow_dispatch:
+
+jobs:
+  run-prediction:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          cd Backend
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            pip install numpy pandas scikit-learn tensorflow web3 pymongo python-dotenv eth-account
+          fi
+      
+      - name: Run prediction script
+        env:
+          # Add your environment variables from GitHub Secrets
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          MONGO_DB: ${{ secrets.MONGO_DB }}
+          RPC_URL: ${{ secrets.RPC_URL }}
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+          STRATEGY_MANAGER_ADDRESS: ${{ secrets.STRATEGY_MANAGER_ADDRESS }}
+          YIELD_VAULT_ADDRESS: ${{ secrets.YIELD_VAULT_ADDRESS }}
+        run: |
+          cd Backend
+          python predict_and_run.py
+      
+      - name: Upload logs (optional)
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: prediction-logs
+          path: Backend/*.log
+          retention-days: 7
