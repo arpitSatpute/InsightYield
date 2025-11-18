@@ -1,34 +1,19 @@
 {
-  "name": "insight-yield-keeper",
+  "name": "insightyield-keeper",
   "version": "1.0.0",
-  "description": "keeper bot for strategy manager contracts",
-  "type": "commonjs",
+  "description": "AI strategy manager prediction runner",
   "main": "index.js",
+  "type": "commonjs",
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "heroku-postbuild": "npm run build",
-    "dev": "ts-node -T src/index.ts"
+    "start": "node index.js"
   },
-  "keywords": [
-    "keeper",
-    "liquidation",
-    "defi"
-  ],
-  "author": "",
-  "license": "ISC",
+  "engines": {
+    "node": "20.x",
+    "npm": ">=8.0.0"
+  },
   "dependencies": {
-    "cors": "^2.8.5",
     "dotenv": "^17.2.3",
-    "ethers": "^6.15.0",
-    "express": "^5.1.0",
-    "mongodb": "^7.0.0",
-    "typescript": "^5.2.2"
-  },
-  "devDependencies": {
-    "@types/express": "^5.0.5",
-    "@types/node": "^20.5.9",
-    "nodemon": "^3.0.1",
-    "ts-node": "^10.9.1"
+    "ethers": "^5.7.2",
+    "mongodb": "^7.0.0"
   }
 }
