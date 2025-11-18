@@ -1,5 +1,5 @@
 {
-  "name": "insightyield-service",
+  "name": "insightyield-keeper",
   "version": "1.0.0",
   "description": "AI strategy manager prediction runner",
   "main": "index.js",

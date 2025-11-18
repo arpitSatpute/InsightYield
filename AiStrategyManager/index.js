@@ -1,6 +1,6 @@
-
 const { ethers } = require('ethers');
 const { MongoClient } = require('mongodb');
+const http = require('http');
 require('dotenv').config();
 
 
@@ -77,10 +77,65 @@ class EnhancedKeeper {
     // Event tracking
     this.lastProcessedBlock = 0;
     this.isRebalancing = false;
+    
+    // Health check server
+    this.healthServer = null;
+  }
+
+  // Health Check Server for Northflank
+  startHealthCheckServer() {
+    const PORT = process.env.PORT || 3000;
+    
+    const server = http.createServer((req, res) => {
+      if (req.url === '/health' || req.url === '/') {
+        const uptime = Math.floor((Date.now() - this.stats.startTime) / 1000);
+        const hours = Math.floor(uptime / 3600);
+        const minutes = Math.floor((uptime % 3600) / 60);
+        const seconds = uptime % 60;
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          status: 'healthy',
+          service: 'insightyield-keeper',
+          version: '1.0.0',
+          uptime: `${hours}h ${minutes}m ${seconds}s`,
+          uptimeSeconds: uptime,
+          stats: {
+            checksPerformed: this.stats.checksPerformed,
+            recommendationsSubmitted: this.stats.recommendationsSubmitted,
+            depositsDetected: this.stats.depositsDetected,
+            rebalancesTriggered: this.stats.rebalancesTriggered,
+            errors: this.stats.errors
+          },
+          lastCheckTime: this.stats.lastCheckTime ? new Date(this.stats.lastCheckTime).toISOString() : null,
+          lastSubmissionTime: this.stats.lastSubmissionTime ? new Date(this.stats.lastSubmissionTime).toISOString() : null,
+          lastRebalanceTime: this.stats.lastRebalanceTime ? new Date(this.stats.lastRebalanceTime).toISOString() : null,
+          timestamp: new Date().toISOString()
+        }, null, 2));
+      } else if (req.url === '/stats') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(this.stats, null, 2));
+      } else {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Not Found', availableEndpoints: ['/health', '/stats'] }));
+      }
+    });
+
+    server.listen(PORT, '0.0.0.0', () => {
+      console.log(`🏥 Health check server running on port ${PORT}`);
+      console.log(`   Endpoints:`);
+      console.log(`   - http://0.0.0.0:${PORT}/health`);
+      console.log(`   - http://0.0.0.0:${PORT}/stats`);
+    });
+
+    this.healthServer = server;
   }
 
   async initialize() {
     console.log('🚀 Initializing Enhanced Keeper Service...\n');
+    
+    // Start health check server first (required for Northflank)
+    this.startHealthCheckServer();
     
     // Connect to MongoDB
     const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017';
@@ -714,6 +769,12 @@ class EnhancedKeeper {
     this.running = false;
     
     this.printStats();
+    
+    // Close health check server
+    if (this.healthServer) {
+      this.healthServer.close();
+      console.log('✅ Health check server closed');
+    }
     
     if (this.mongoClient) {
       await this.mongoClient.close();
