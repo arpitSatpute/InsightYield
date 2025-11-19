@@ -2,7 +2,7 @@ name: Run Prediction Script
 
 on:
   schedule:
-    # Run every hour at minute 0
+    # Run every 15 minutes
     - cron: '*/15 * * * *'
   
   # Allow manual trigger from GitHub UI
@@ -20,34 +20,42 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-          cache: 'pip'
+      
+      - name: Verify file exists
+        run: |
+          echo "Checking for Backend/predict_and_run.py..."
+          if [ -f Backend/predict_and_run.py ]; then
+            echo "✅ File found!"
+            ls -lh Backend/predict_and_run.py
+          else
+            echo "❌ File not found!"
+            echo "Repository contents:"
+            ls -la
+            if [ -d Backend ]; then
+              echo "Backend folder contents:"
+              ls -la Backend/
+            fi
+            exit 1
+          fi
       
       - name: Install dependencies
+        working-directory: Backend
         run: |
-          cd Backend
+          python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then
             pip install -r requirements.txt
           else
-            pip install numpy pandas scikit-learn tensorflow web3 pymongo python-dotenv eth-account
+            echo "No requirements.txt found, installing common packages..."
+            pip install numpy pandas scikit-learn tensorflow web3 pymongo python-dotenv eth-account requests
           fi
       
       - name: Run prediction script
+        working-directory: Backend
         env:
-          # Add your environment variables from GitHub Secrets
           MONGO_URI: ${{ secrets.MONGO_URI }}
           MONGO_DB: ${{ secrets.MONGO_DB }}
           RPC_URL: ${{ secrets.RPC_URL }}
           PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
           STRATEGY_MANAGER_ADDRESS: ${{ secrets.STRATEGY_MANAGER_ADDRESS }}
           YIELD_VAULT_ADDRESS: ${{ secrets.YIELD_VAULT_ADDRESS }}
-        run: |
-          cd Backend
-          python predict_and_sign.py
-      
-      - name: Upload logs (optional)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: prediction-logs
-          path: Backend/*.log
-          retention-days: 7
+        run: python predict_and_sign.py
