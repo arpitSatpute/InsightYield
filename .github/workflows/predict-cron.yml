@@ -23,10 +23,10 @@ jobs:
       
       - name: Verify file exists
         run: |
-          echo "Checking for Backend/predict_and_run.py..."
-          if [ -f Backend/predict_and_run.py ]; then
+          echo "Checking for Backend/predict_and_sign.py..."
+          if [ -f Backend/predict_and_sign.py ]; then
             echo "✅ File found!"
-            ls -lh Backend/predict_and_run.py
+            ls -lh Backend/predict_and_sign.py
           else
             echo "❌ File not found!"
             echo "Repository contents:"
